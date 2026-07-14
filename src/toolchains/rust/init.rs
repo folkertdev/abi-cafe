@@ -44,6 +44,9 @@ impl RustcToolchain {
                 }
                 PrimitiveTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
                 PrimitiveTy::F128 => write!(f, "f128::from_bits({})", val.generate_u128())?,
+                PrimitiveTy::X86f80 => Err(UnsupportedError::Other(
+                    "rust doesn't have x86_f80".to_owned(),
+                ))?,
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

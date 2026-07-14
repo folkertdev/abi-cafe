@@ -86,6 +86,17 @@ impl CcToolchain {
                         "(((union {{ __uint128_t bits; __float128 value; }}){{ .bits = ((__uint128_t){lower:#X}ull) | (((__uint128_t){higher:#X}ull) << 64) }}).value)"
                     )?
                 }
+                PrimitiveTy::X86f80 => {
+                    // Limit to 80 bits / 10 bytes.
+                    let val = val.generate_u128() & 0x0000_0000_0000_FFFF_FFFF_FFFF_FFFF_FFFF;
+
+                    let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
+                    let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+                    write!(
+                        f,
+                        "(((union {{ __uint128_t bits; long double value; }}){{ .bits = ((__uint128_t){lower:#X}ull) | (((__uint128_t){higher:#X}ull) << 64) }}).value)"
+                    )?
+                }
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

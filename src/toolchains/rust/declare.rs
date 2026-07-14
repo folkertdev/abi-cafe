@@ -102,6 +102,9 @@ impl RustcToolchain {
                             ))?;
                         }
                     }
+                    PrimitiveTy::X86f80 => Err(UnsupportedError::Other(
+                        "rust doesn't have x86_f80".to_owned(),
+                    ))?,
                 };
                 (name.to_owned(), None)
             }
@@ -296,6 +299,7 @@ impl RustcToolchain {
                     | PrimitiveTy::F32
                     | PrimitiveTy::F64
                     | PrimitiveTy::F128
+                    | PrimitiveTy::X86f80
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
                         // Builtin
@@ -359,6 +363,7 @@ impl RustcToolchain {
                                 | PrimitiveTy::F32
                                 | PrimitiveTy::F64
                                 | PrimitiveTy::F128
+                                | PrimitiveTy::X86f80
                                 | PrimitiveTy::Bool
                                 | PrimitiveTy::Ptr => {
                                     return Err(UnsupportedError::Other(format!(

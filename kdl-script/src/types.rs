@@ -205,6 +205,8 @@ pub enum PrimitiveTy {
     Bool,
     /// An opaque pointer (like `void*`)
     Ptr,
+    /// `x86_fp80` / `long double` on x86 and x86_64
+    X86f80,
 }
 
 pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
@@ -222,6 +224,7 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("u256", PrimitiveTy::U256),
     ("f16", PrimitiveTy::F16),
     ("f32", PrimitiveTy::F32),
+    ("f80", PrimitiveTy::X86f80),
     ("f64", PrimitiveTy::F64),
     ("f128", PrimitiveTy::F128),
     ("bool", PrimitiveTy::Bool),

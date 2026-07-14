@@ -259,7 +259,13 @@ impl CcToolchain {
                 } else {
                     path
                 };
-                writeln!(f, "write_val({to}, {val_idx}, {rvalue});")?;
+
+                if let Ty::Primitive(PrimitiveTy::X86f80) = state.types.realize_ty(val.ty) {
+                    // Only the first 10 bytes of an x86_f80 value are meaningful.
+                    writeln!(f, "WRITE_VAL({to}, {val_idx}, (char*)&{rvalue}, 10);")?;
+                } else {
+                    writeln!(f, "write_val({to}, {val_idx}, {rvalue});")?;
+                }
             }
             WriteImpl::Assert => {
                 write!(f, "assert_eq({path}, ")?;

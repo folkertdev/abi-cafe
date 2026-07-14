@@ -160,6 +160,18 @@ impl CcToolchain {
                             ))?,
                         }
                     }
+                    PrimitiveTy::X86f80 => {
+                        if cfg!(all(
+                            any(target_arch = "x86", target_arch = "x86_64"),
+                            not(any(target_os = "windows", target_os = "uefi")),
+                        )) {
+                            "long double "
+                        } else {
+                            Err(UnsupportedError::Other(
+                                "x86_f80 is not supported on this target".to_owned(),
+                            ))?
+                        }
+                    }
                 };
                 (name.to_owned(), None)
             }
@@ -261,6 +273,7 @@ impl CcToolchain {
                     | PrimitiveTy::F16
                     | PrimitiveTy::F32
                     | PrimitiveTy::F64
+                    | PrimitiveTy::X86f80
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
@@ -388,6 +401,7 @@ impl CcToolchain {
                     | PrimitiveTy::F16
                     | PrimitiveTy::F32
                     | PrimitiveTy::F64
+                    | PrimitiveTy::X86f80
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
