@@ -6,6 +6,7 @@ mod harness;
 mod log;
 mod toolchains;
 
+use camino::Utf8PathBuf;
 use error::*;
 use files::Paths;
 use harness::report::*;
@@ -57,6 +58,7 @@ impl std::str::FromStr for OutputFormat {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub target: Option<&'static platforms::Platform>,
+    pub linker: Option<Utf8PathBuf>,
     pub output_format: OutputFormat,
     pub run_conventions: Vec<CallingConvention>,
     pub run_reprs: Vec<LangRepr>,

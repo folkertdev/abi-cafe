@@ -55,6 +55,7 @@ pub trait Toolchain {
 pub struct Toolchains {
     pub platform_info: PlatformInfo,
     pub rustc_command: Utf8PathBuf,
+    pub linker: Option<Utf8PathBuf>,
     pub toolchains: ToolchainMap,
     pub debug: bool,
 }
@@ -106,6 +107,7 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
     Toolchains {
         platform_info,
         rustc_command,
+        linker: cfg.linker.clone(),
         toolchains,
         debug: cfg.debug,
     }

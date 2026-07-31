@@ -160,6 +160,9 @@ fn build_harness_dylib(
         .arg("-o")
         .arg(&output)
         .arg(&src);
+    if let Some(linker) = &toolchains.linker {
+        cmd.arg(format!("-Clinker={linker}"));
+    }
     if toolchains.debug {
         cmd.arg("-g");
     }
@@ -204,6 +207,9 @@ fn build_harness_main(
         .arg("-o")
         .arg(&output)
         .arg(bin_main);
+    if let Some(linker) = &toolchains.linker {
+        cmd.arg(format!("-Clinker={linker}"));
+    }
     if toolchains.debug {
         cmd.arg("-g");
     }
