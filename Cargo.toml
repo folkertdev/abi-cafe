@@ -36,6 +36,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 toml.workspace = true
 cargo-platform.workspace = true
+platforms = "4.1.0"
 
 
 

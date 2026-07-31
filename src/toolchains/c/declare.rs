@@ -526,7 +526,6 @@ impl CcToolchain {
     ) -> Result<&'static str, GenerateError> {
         use CCFlavor::*;
         use CallingConvention::*;
-        use Platform::*;
         // GCC (as __attribute__'s)
         //
         //  * x86: cdecl, fastcall, thiscall, stdcall,
@@ -552,7 +551,7 @@ impl CcToolchain {
             }
             C => "",
             Cdecl => {
-                if self.platform == Windows {
+                if self.platform.target_os.as_str().contains("windows") {
                     match self.cc_flavor {
                         Msvc => "__cdecl ",
                         Gcc | Clang | Zigcc => "__attribute__((cdecl)) ",
@@ -562,7 +561,7 @@ impl CcToolchain {
                 }
             }
             Stdcall => {
-                if self.platform == Windows {
+                if self.platform.target_os.as_str().contains("windows") {
                     match self.cc_flavor {
                         Msvc => "__stdcall ",
                         Gcc | Clang | Zigcc => "__attribute__((stdcall)) ",
@@ -572,7 +571,7 @@ impl CcToolchain {
                 }
             }
             Fastcall => {
-                if self.platform == Windows {
+                if self.platform.target_os.as_str().contains("windows") {
                     match self.cc_flavor {
                         Msvc => "__fastcall ",
                         Gcc | Clang | Zigcc => "__attribute__((fastcall)) ",
@@ -582,7 +581,7 @@ impl CcToolchain {
                 }
             }
             Vectorcall => {
-                if self.platform == Windows {
+                if self.platform.target_os.as_str().contains("windows") {
                     match self.cc_flavor {
                         Msvc => "__vectorcall ",
                         Gcc | Clang | Zigcc => "__attribute__((vectorcall)) ",

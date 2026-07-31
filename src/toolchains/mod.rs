@@ -63,7 +63,7 @@ pub type ToolchainMap = SortedMap<String, Arc<dyn Toolchain + Send + Sync>>;
 #[derive(Debug, Clone)]
 pub struct PlatformInfo {
     /// Platform we're targetting
-    pub target: String,
+    pub target: &'static platforms::Platform,
     /// Enabled rustc cfgs, used for our own test harness cfgs
     pub cfgs: Vec<cargo_platform::Cfg>,
 }
@@ -78,8 +78,8 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
 
     // Set up env vars for CC
     std::env::set_var("OUT_DIR", &cfg.paths.out_dir);
-    std::env::set_var("HOST", platform_info.target.clone());
-    std::env::set_var("TARGET", platform_info.target.clone());
+    std::env::set_var("HOST", platform_info.target.to_string());
+    std::env::set_var("TARGET", platform_info.target.to_string());
     std::env::set_var("OPT_LEVEL", "0");
 
     // Add rust toolchains
@@ -97,7 +97,7 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
         add_toolchain(
             &mut toolchains,
             name,
-            CcToolchain::new(cfg, &platform_info.target, name),
+            CcToolchain::new(cfg, platform_info.target, name),
         );
     }
 

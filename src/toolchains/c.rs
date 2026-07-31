@@ -22,8 +22,7 @@ const INDENT: &str = "    ";
 
 pub struct CcToolchain {
     cc_flavor: CCFlavor,
-    target: String,
-    platform: Platform,
+    platform: &'static platforms::Platform,
     mode: &'static str,
     debug: bool,
 }
@@ -34,12 +33,6 @@ enum CCFlavor {
     Gcc,
     Msvc,
     Zigcc,
-}
-
-#[derive(PartialEq)]
-enum Platform {
-    Windows,
-    Unixy,
 }
 
 pub struct TestState {
@@ -273,7 +266,7 @@ impl CcToolchain {
 }
 
 impl CcToolchain {
-    pub fn new(system_info: &Config, target: &str, mode: &'static str) -> Self {
+    pub fn new(system_info: &Config, platform: &'static platforms::Platform, mode: CCMode) -> Self {
         let cc_flavor = match mode {
             TOOLCHAIN_GCC => CCFlavor::Gcc,
             TOOLCHAIN_CLANG => CCFlavor::Clang,
@@ -299,15 +292,8 @@ impl CcToolchain {
             mode => panic!("Unknown CcToolchain mode {mode:?}"),
         };
 
-        let platform = if target.contains("windows") {
-            Platform::Windows
-        } else {
-            Platform::Unixy
-        };
-
         Self {
             cc_flavor,
-            target: target.to_owned(),
             platform,
             mode,
             debug: system_info.debug,
@@ -342,7 +328,7 @@ impl CcToolchain {
             .cargo_debug(false)
             .cargo_warnings(false)
             .cargo_output(false)
-            .target(&self.target)
+            .target(&self.platform.target_triple)
             .out_dir(out_dir)
             // .warnings_into_errors(true)
             .try_compile(lib_name)?;
