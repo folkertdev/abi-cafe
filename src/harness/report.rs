@@ -58,7 +58,7 @@ impl TestHarness {
             let platform = cargo_platform::Platform::from_str(target_cfg)
                 .expect("failed to parse target expr in test file");
             platform.matches(
-                &self.toolchains.platform_info.target.target_triple,
+                self.toolchains.platform_info.target.target_triple,
                 &self.toolchains.platform_info.cfgs,
             )
         }
