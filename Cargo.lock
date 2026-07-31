@@ -18,6 +18,7 @@ dependencies = [
  "libloading",
  "linked-hash-map",
  "miette",
+ "platforms",
  "rand",
  "rand_core",
  "rand_pcg",
@@ -629,6 +630,12 @@ name = "pin-project-lite"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda66fc9667c18cb2758a2ac84d1167245054bcf85d5d1aaa6923f45801bdd02"
+
+[[package]]
+name = "platforms"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acff5dfd42135d89cd7ad74a8c52813bbec91bf62c018ddd89390127767caab5"
 
 [[package]]
 name = "ppv-lite86"

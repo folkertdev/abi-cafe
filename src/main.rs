@@ -226,11 +226,9 @@ fn compute_final_report(
     let possible_rules = if expects.is_empty() {
         None
     } else {
+        let target = harness.toolchains.platform_info.target;
         Some(ExpectFile {
-            target: IndexMap::from_iter([(
-                harness.toolchains.platform_info.target.clone(),
-                expects,
-            )]),
+            target: IndexMap::from_iter([(target.target_triple.to_string(), expects)]),
         })
     };
 

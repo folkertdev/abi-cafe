@@ -95,7 +95,7 @@ impl Toolchain for RustcToolchain {
             .arg("--out-dir")
             .arg(out_dir)
             .arg("--target")
-            .arg(&self.platform_info.target)
+            .arg(self.platform_info.target.target_triple)
             .arg(format!("-Cmetadata={lib_name}"))
             .arg(src_path);
         if self.debug {
@@ -311,6 +311,7 @@ impl RustcToolchain {
         }
         let version = version.expect("failed to get rustc version");
         let host = host.expect("failed to get rustc host triple");
+        let host = platforms::Platform::find(&host).expect("invalid target triple");
         let is_nightly = version.contains("nightly");
 
         // Get rustc's cfgs for the platform we're interested in
