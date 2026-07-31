@@ -114,6 +114,12 @@ struct Cli {
     #[clap(long)]
     target: Option<String>,
 
+    /// the linker to use when building the final test binaries (aarch64-linux-gnu-gcc, ...)
+    ///
+    /// default: (whatever rustc picks)
+    #[clap(long)]
+    linker: Option<Utf8PathBuf>,
+
     /// final report output format (human, json)
     #[clap(long, default_value_t = OutputFormat::Human)]
     output_format: OutputFormat,
@@ -179,6 +185,7 @@ pub fn make_app() -> Config {
         write_vals,
         minimize_vals,
         target,
+        linker,
         output_format,
         add_rustc_codegen_backend,
         add_tests,
@@ -288,6 +295,7 @@ Hint: Try using `--pairs {name}_calls_rustc` or `--pairs rustc_calls_{name}`.
     };
     Config {
         target,
+        linker,
         output_format,
         run_conventions,
         run_reprs,
