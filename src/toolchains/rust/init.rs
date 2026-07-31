@@ -1,6 +1,6 @@
 use super::*;
 use crate::harness::vals::*;
-use kdl_script::types::{AliasTy, ArrayTy, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{AliasTy, ArrayTy, ComplexTy, PrimitiveTy, RefTy, Ty, TyIdx};
 use std::fmt::Write;
 
 impl RustcToolchain {
@@ -44,6 +44,42 @@ impl RustcToolchain {
                 }
                 PrimitiveTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
                 PrimitiveTy::F128 => write!(f, "f128::from_bits({})", val.generate_u128())?,
+                PrimitiveTy::Complex(complex) => {
+                    let (re, im) = val.generate_complex();
+                    // How wide the base type is is the target's business, so cast the
+                    // bits down to it and let it truncate, exactly like the c side does
+                    let ints = |base: &str| {
+                        (
+                            format!("{re:#X}u128 as {base}"),
+                            format!("{im:#X}u128 as {base}"),
+                        )
+                    };
+                    let (re, im) = match complex {
+                        ComplexTy::Float => (
+                            format!("f32::from_bits({}u32)", re as u32),
+                            format!("f32::from_bits({}u32)", im as u32),
+                        ),
+                        ComplexTy::Double => (
+                            format!("f64::from_bits({}u64)", re as u64),
+                            format!("f64::from_bits({}u64)", im as u64),
+                        ),
+                        ComplexTy::Char => ints("core::ffi::c_char"),
+                        ComplexTy::SChar => ints("core::ffi::c_schar"),
+                        ComplexTy::UChar => ints("core::ffi::c_uchar"),
+                        ComplexTy::Short => ints("core::ffi::c_short"),
+                        ComplexTy::UShort => ints("core::ffi::c_ushort"),
+                        ComplexTy::Int => ints("core::ffi::c_int"),
+                        ComplexTy::UInt => ints("core::ffi::c_uint"),
+                        ComplexTy::Long => ints("core::ffi::c_long"),
+                        ComplexTy::ULong => ints("core::ffi::c_ulong"),
+                        ComplexTy::LongLong => ints("core::ffi::c_longlong"),
+                        ComplexTy::ULongLong => ints("core::ffi::c_ulonglong"),
+                        ComplexTy::LongDouble => Err(UnsupportedError::Other(
+                            "rust doesn't have c_longdouble yet".to_owned(),
+                        ))?,
+                    };
+                    write!(f, "core::num::Complex::new({re}, {im})")?
+                }
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

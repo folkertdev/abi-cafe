@@ -1,6 +1,6 @@
 use super::*;
 use kdl_script::parse::{Attr, AttrAligned, AttrPacked, AttrPassthrough, AttrRepr, LangRepr, Repr};
-use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{AliasTy, ArrayTy, ComplexTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
 use std::fmt::Write;
 
 impl RustcToolchain {
@@ -100,6 +100,34 @@ impl RustcToolchain {
                             return Err(UnsupportedError::Other(
                                 "f128 is an unstable rust feature, requires nightly".to_owned(),
                             ))?;
+                        }
+                    }
+                    PrimitiveTy::Complex(complex) => {
+                        if !self.is_nightly {
+                            return Err(UnsupportedError::Other(
+                                "complex numbers are an unstable rust feature, requires nightly"
+                                    .to_owned(),
+                            ))?;
+                        }
+                        match complex {
+                            ComplexTy::Float => "core::num::Complex<core::ffi::c_float>",
+                            ComplexTy::Double => "core::num::Complex<core::ffi::c_double>",
+                            ComplexTy::Char => "core::num::Complex<core::ffi::c_char>",
+                            ComplexTy::SChar => "core::num::Complex<core::ffi::c_schar>",
+                            ComplexTy::UChar => "core::num::Complex<core::ffi::c_uchar>",
+                            ComplexTy::Short => "core::num::Complex<core::ffi::c_short>",
+                            ComplexTy::UShort => "core::num::Complex<core::ffi::c_ushort>",
+                            ComplexTy::Int => "core::num::Complex<core::ffi::c_int>",
+                            ComplexTy::UInt => "core::num::Complex<core::ffi::c_uint>",
+                            ComplexTy::Long => "core::num::Complex<core::ffi::c_long>",
+                            ComplexTy::ULong => "core::num::Complex<core::ffi::c_ulong>",
+                            ComplexTy::LongLong => "core::num::Complex<core::ffi::c_longlong>",
+                            ComplexTy::ULongLong => "core::num::Complex<core::ffi::c_ulonglong>",
+                            ComplexTy::LongDouble => {
+                                return Err(UnsupportedError::Other(
+                                    "rust doesn't have c_longdouble yet".to_owned(),
+                                ))?;
+                            }
                         }
                     }
                 };
@@ -297,7 +325,8 @@ impl RustcToolchain {
                     | PrimitiveTy::F64
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
-                    | PrimitiveTy::Ptr => {
+                    | PrimitiveTy::Ptr
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };
@@ -360,7 +389,8 @@ impl RustcToolchain {
                                 | PrimitiveTy::F64
                                 | PrimitiveTy::F128
                                 | PrimitiveTy::Bool
-                                | PrimitiveTy::Ptr => {
+                                | PrimitiveTy::Ptr
+                                | PrimitiveTy::Complex(_) => {
                                     return Err(UnsupportedError::Other(format!(
                                         "unsupport repr({prim:?})"
                                     )))?;

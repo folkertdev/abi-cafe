@@ -1,6 +1,6 @@
 use super::*;
 use kdl_script::parse::{Attr, AttrAligned};
-use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{AliasTy, ArrayTy, ComplexTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
 use platforms::{Arch, Env, Os, PointerWidth};
 use std::fmt::Write;
 
@@ -175,6 +175,29 @@ impl CcToolchain {
                             "MSVC doesn't support f128".to_owned(),
                         ))?,
                     },
+                    // The integer complexes are a GNU extension, but every flavor we
+                    // support other than MSVC is happy to take them
+                    PrimitiveTy::Complex(complex) => match &self.cc_flavor {
+                        CCFlavor::Msvc => Err(UnsupportedError::Other(
+                            "MSVC doesn't support _Complex".to_owned(),
+                        ))?,
+                        CCFlavor::Gcc | CCFlavor::Clang | CCFlavor::Zigcc => match complex {
+                            ComplexTy::Float => "_Complex float ",
+                            ComplexTy::Double => "_Complex double ",
+                            ComplexTy::LongDouble => "_Complex long double ",
+                            ComplexTy::Char => "_Complex char ",
+                            ComplexTy::SChar => "_Complex signed char ",
+                            ComplexTy::UChar => "_Complex unsigned char ",
+                            ComplexTy::Short => "_Complex short ",
+                            ComplexTy::UShort => "_Complex unsigned short ",
+                            ComplexTy::Int => "_Complex int ",
+                            ComplexTy::UInt => "_Complex unsigned int ",
+                            ComplexTy::Long => "_Complex long ",
+                            ComplexTy::ULong => "_Complex unsigned long ",
+                            ComplexTy::LongLong => "_Complex long long ",
+                            ComplexTy::ULongLong => "_Complex unsigned long long ",
+                        },
+                    },
                 };
                 (name.to_owned(), None)
             }
@@ -293,7 +316,8 @@ impl CcToolchain {
                     | PrimitiveTy::F64
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
-                    | PrimitiveTy::Ptr => {
+                    | PrimitiveTy::Ptr
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };
@@ -420,7 +444,8 @@ impl CcToolchain {
                     | PrimitiveTy::F64
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
-                    | PrimitiveTy::Ptr => {
+                    | PrimitiveTy::Ptr
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };

@@ -1,6 +1,6 @@
 use super::*;
 use crate::harness::vals::{ArgValuesIter, Value};
-use kdl_script::types::{AliasTy, ArrayTy, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{AliasTy, ArrayTy, ComplexTy, PrimitiveTy, RefTy, Ty, TyIdx};
 use std::fmt::Write;
 
 impl CcToolchain {
@@ -95,6 +95,58 @@ impl CcToolchain {
                     write!(
                         f,
                         "(((union {{ uint64_t bits[2]; {f128_ty_name} value; }}){{ .bits = {{ {first:#X}ull, {second:#X}ull }} }}).value)"
+                    )?
+                }
+                PrimitiveTy::Complex(complex) => {
+                    let (re, im) = val.generate_complex();
+                    // `__builtin_complex` only takes reals, so the integer complexes
+                    // (a GNU extension) have to be built with an imaginary constant.
+                    // Casting each part narrows the bits like the rust side does.
+                    let base = match complex {
+                        ComplexTy::Float => {
+                            let lit = |bits: u32| {
+                                let val = f32::from_bits(bits);
+                                if val.fract() == 0.0 {
+                                    format!("{val}.0f")
+                                } else {
+                                    format!("{val}f")
+                                }
+                            };
+                            let (re, im) = (lit(re as u32), lit(im as u32));
+                            return Ok(write!(f, "__builtin_complex({re}, {im})")?);
+                        }
+                        ComplexTy::Double | ComplexTy::LongDouble => {
+                            let suffix = match complex {
+                                ComplexTy::LongDouble => "L",
+                                _ => "",
+                            };
+                            let lit = |bits: u64| {
+                                let val = f64::from_bits(bits);
+                                if val.fract() == 0.0 {
+                                    format!("{val}.0{suffix}")
+                                } else {
+                                    format!("{val}{suffix}")
+                                }
+                            };
+                            let (re, im) = (lit(re as u64), lit(im as u64));
+                            return Ok(write!(f, "__builtin_complex({re}, {im})")?);
+                        }
+                        ComplexTy::Char => "char",
+                        ComplexTy::SChar => "signed char",
+                        ComplexTy::UChar => "unsigned char",
+                        ComplexTy::Short => "short",
+                        ComplexTy::UShort => "unsigned short",
+                        ComplexTy::Int => "int",
+                        ComplexTy::UInt => "unsigned int",
+                        ComplexTy::Long => "long",
+                        ComplexTy::ULong => "unsigned long",
+                        ComplexTy::LongLong => "long long",
+                        ComplexTy::ULongLong => "unsigned long long",
+                    };
+                    let (re, im) = (re as u64, im as u64);
+                    write!(
+                        f,
+                        "(_Complex {base})(({base}){re:#X}ull + (({base}){im:#X}ull) * 1i)"
                     )?
                 }
             },

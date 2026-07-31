@@ -205,6 +205,55 @@ pub enum PrimitiveTy {
     Bool,
     /// An opaque pointer (like `void*`)
     Ptr,
+    /// `Complex<T>` / `_Complex T`
+    Complex(ComplexTy),
+}
+
+/// The base type of a [`PrimitiveTy::Complex`]
+///
+/// These are spelled with C's type names because that's what the complex ABIs
+/// are defined in terms of, and rust matches them with `core::ffi` types.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ComplexTy {
+    /// `Complex<c_float>` / `_Complex float`
+    Float,
+    /// `Complex<c_double>` / `_Complex double`
+    Double,
+    /// `_Complex long double` (rust has no `c_longdouble` yet)
+    LongDouble,
+    /// `Complex<c_char>` / `_Complex char`
+    Char,
+    /// `Complex<c_schar>` / `_Complex signed char`
+    SChar,
+    /// `Complex<c_uchar>` / `_Complex unsigned char`
+    UChar,
+    /// `Complex<c_short>` / `_Complex short`
+    Short,
+    /// `Complex<c_ushort>` / `_Complex unsigned short`
+    UShort,
+    /// `Complex<c_int>` / `_Complex int`
+    Int,
+    /// `Complex<c_uint>` / `_Complex unsigned int`
+    UInt,
+    /// `Complex<c_long>` / `_Complex long`
+    Long,
+    /// `Complex<c_ulong>` / `_Complex unsigned long`
+    ULong,
+    /// `Complex<c_longlong>` / `_Complex long long`
+    LongLong,
+    /// `Complex<c_ulonglong>` / `_Complex unsigned long long`
+    ULongLong,
+}
+
+impl PrimitiveTy {
+    /// The kdl-script name of this primitive
+    pub fn name(self) -> &'static str {
+        PRIMITIVES
+            .iter()
+            .find(|&&(_, prim)| prim == self)
+            .map(|&(name, _)| name)
+            .expect("primitive was missing from PRIMITIVES!?")
+    }
 }
 
 pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
@@ -226,6 +275,29 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("f128", PrimitiveTy::F128),
     ("bool", PrimitiveTy::Bool),
     ("ptr", PrimitiveTy::Ptr),
+    ("complex_float", PrimitiveTy::Complex(ComplexTy::Float)),
+    ("complex_double", PrimitiveTy::Complex(ComplexTy::Double)),
+    (
+        "complex_long_double",
+        PrimitiveTy::Complex(ComplexTy::LongDouble),
+    ),
+    ("complex_char", PrimitiveTy::Complex(ComplexTy::Char)),
+    ("complex_schar", PrimitiveTy::Complex(ComplexTy::SChar)),
+    ("complex_uchar", PrimitiveTy::Complex(ComplexTy::UChar)),
+    ("complex_short", PrimitiveTy::Complex(ComplexTy::Short)),
+    ("complex_ushort", PrimitiveTy::Complex(ComplexTy::UShort)),
+    ("complex_int", PrimitiveTy::Complex(ComplexTy::Int)),
+    ("complex_uint", PrimitiveTy::Complex(ComplexTy::UInt)),
+    ("complex_long", PrimitiveTy::Complex(ComplexTy::Long)),
+    ("complex_ulong", PrimitiveTy::Complex(ComplexTy::ULong)),
+    (
+        "complex_longlong",
+        PrimitiveTy::Complex(ComplexTy::LongLong),
+    ),
+    (
+        "complex_ulonglong",
+        PrimitiveTy::Complex(ComplexTy::ULongLong),
+    ),
 ];
 
 /// The Ty of a nominal struct.
@@ -935,7 +1007,7 @@ impl TyCtx {
     /// Stringify a type.
     pub fn format_ty(&self, ty: TyIdx) -> String {
         match self.realize_ty(ty) {
-            Ty::Primitive(prim) => format!("{:?}", prim).to_lowercase(),
+            Ty::Primitive(prim) => prim.name().to_owned(),
             Ty::Empty => "()".to_string(),
             Ty::Struct(decl) => format!("{}", decl.name),
             Ty::Enum(decl) => format!("{}", decl.name),
