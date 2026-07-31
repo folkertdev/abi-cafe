@@ -108,6 +108,12 @@ struct Cli {
     #[clap(long, short, value_delimiter(','))]
     key: Vec<String>,
 
+    /// the target triple to test (x86_64-unknown-linux-gnu, aarch64-apple-darwin, ...)
+    ///
+    /// default: the host target
+    #[clap(long)]
+    target: Option<String>,
+
     /// final report output format (human, json)
     #[clap(long, default_value_t = OutputFormat::Human)]
     output_format: OutputFormat,
@@ -172,6 +178,7 @@ pub fn make_app() -> Config {
         gen_vals,
         write_vals,
         minimize_vals,
+        target,
         output_format,
         add_rustc_codegen_backend,
         add_tests,
@@ -194,6 +201,10 @@ pub fn make_app() -> Config {
     let run_writers = write_vals;
     let run_selections = vec![FunctionSelector::All];
     let minimizing_write_impl = minimize_vals;
+
+    let target = target.map(|target| {
+        platforms::Platform::find(&target).unwrap_or_else(|| panic!("unknown --target {target}"))
+    });
 
     let mut run_pairs: Vec<_> = pairs
         .iter()
@@ -276,6 +287,7 @@ Hint: Try using `--pairs {name}_calls_rustc` or `--pairs rustc_calls_{name}`.
         runtime_rules_file,
     };
     Config {
+        target,
         output_format,
         run_conventions,
         run_reprs,
