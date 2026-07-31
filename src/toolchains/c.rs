@@ -7,6 +7,8 @@ mod write;
 use camino::Utf8Path;
 use kdl_script::types::*;
 use kdl_script::PunEnv;
+use platforms::Arch;
+use platforms::Endian;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -305,9 +307,10 @@ impl CcToolchain {
     }
 
     fn extra_flags(&self) -> &[&str] {
+        let is_le = self.platform.target_endian == Endian::Little;
         match self.cc_flavor {
-            CCFlavor::Gcc if cfg!(target_arch = "arm") => &["-mfp16-format=ieee"],
-            CCFlavor::Clang if cfg!(all(target_arch = "powerpc64", target_endian = "little")) => {
+            CCFlavor::Gcc if self.platform.target_arch == Arch::Arm => &["-mfp16-format=ieee"],
+            CCFlavor::Clang if self.platform.target_arch == Arch::PowerPc64 && is_le => {
                 &["-mfloat128"]
             }
             _ => &[],
@@ -332,7 +335,7 @@ impl CcToolchain {
             .cargo_debug(false)
             .cargo_warnings(false)
             .cargo_output(false)
-            .target(&self.platform.target_triple)
+            .target(self.platform.target_triple)
             .out_dir(out_dir)
             // .warnings_into_errors(true)
             .try_compile(lib_name)?;

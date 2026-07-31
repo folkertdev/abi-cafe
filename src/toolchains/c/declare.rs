@@ -1,6 +1,7 @@
 use super::*;
 use kdl_script::parse::Attr;
 use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
+use platforms::{Arch, Env, Os};
 use std::fmt::Write;
 
 impl CcToolchain {
@@ -53,6 +54,21 @@ impl CcToolchain {
             return Ok(());
         }
 
+        let has_vsx = self.platform.target_endian == platforms::Endian::Little;
+
+        let has_sse2 = cfg_select! {
+            target_arch = "x86" => cfg!(target_feature = "sse2"),
+            target_arch = "x86_64" => true,
+            _ => false,
+        };
+
+        let is_apple = matches!(
+            self.platform.target_os,
+            Os::MacOS | Os::iOS | Os::TvOS | Os::WatchOS | Os::VisionOS
+        );
+
+        let is_msvc = matches!(self.platform.target_env, Env::Msvc);
+
         let (prefix, suffix) = match state.types.realize_ty(ty) {
             // Structural types that don't need definitions but we should
             // intern the name of
@@ -79,87 +95,68 @@ impl CcToolchain {
                         Err(UnsupportedError::Other("c doesn't have u256?".to_owned()))?
                     }
                     PrimitiveTy::F16 => match &self.cc_flavor {
-                        CCFlavor::Gcc
-                            if cfg!(any(
-                                target_arch = "x86",
-                                target_arch = "x86_64",
-                                target_arch = "arm",
-                                target_arch = "aarch64",
-                                target_arch = "riscv32",
-                                target_arch = "riscv64",
-                            )) =>
-                        {
-                            "_Float16 "
-                        }
-                        CCFlavor::Gcc => Err(UnsupportedError::Other(
-                            "GCC isn't known to support f16 on this target".to_owned(),
-                        ))?,
-                        CCFlavor::Clang | CCFlavor::Zigcc
-                            if cfg!(any(
-                                all(target_arch = "x86", target_feature = "sse2"),
-                                target_arch = "x86_64",
-                                target_arch = "arm",
-                                target_arch = "aarch64",
-                                target_arch = "riscv32",
-                                target_arch = "riscv64",
-                            )) =>
-                        {
-                            "_Float16 "
-                        }
-                        CCFlavor::Clang | CCFlavor::Zigcc => Err(UnsupportedError::Other(
-                            "Clang isn't known to support f16 on this target".to_owned(),
-                        ))?,
+                        CCFlavor::Gcc => match self.platform.target_arch {
+                            Arch::X86
+                            | Arch::X86_64
+                            | Arch::Arm
+                            | Arch::AArch64
+                            | Arch::Riscv32
+                            | Arch::Riscv64 => "_Float16 ",
+                            _ => Err(UnsupportedError::Other(
+                                "GCC isn't known to support f16 on this target".to_owned(),
+                            ))?,
+                        },
+                        CCFlavor::Clang | CCFlavor::Zigcc => match self.platform.target_arch {
+                            Arch::X86_64
+                            | Arch::Arm
+                            | Arch::AArch64
+                            | Arch::Riscv32
+                            | Arch::Riscv64 => "_Float16 ",
+                            Arch::X86 if has_sse2 => "_Float16 ",
+                            _ => Err(UnsupportedError::Other(
+                                "Clang isn't known to support f16 on this target".to_owned(),
+                            ))?,
+                        },
                         CCFlavor::Msvc => Err(UnsupportedError::Other(
                             "MSVC doesn't support f16".to_owned(),
                         ))?,
                     },
-                    PrimitiveTy::F128 => {
-                        match &self.cc_flavor {
-                            CCFlavor::Gcc
-                                if cfg!(any(
-                                    target_arch = "x86",
-                                    target_arch = "x86_64",
-                                    target_arch = "aarch64",
-                                    target_arch = "riscv32",
-                                    target_arch = "riscv64",
-                                    target_arch = "loongarch64",
-                                    // GCC PowerPC support requires the VSX feature, which is only
-                                    // enabled by default on powerpc64le. Rust doesn't currently support
-                                    // `cfg(target_feature = "vsx").
-                                    all(target_arch = "powerpc64", target_endian = "little"),
-                                )) && !cfg!(target_vendor = "apple") =>
-                            {
-                                "_Float128 "
+                    PrimitiveTy::F128 => match &self.cc_flavor {
+                        CCFlavor::Gcc => {
+                            let msg = "GCC isn't known to support f128 on this target";
+                            match self.platform.target_arch {
+                                _ if is_apple => Err(UnsupportedError::Other(msg.to_owned()))?,
+                                Arch::X86
+                                | Arch::X86_64
+                                | Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64
+                                | Arch::Loongarch64 => "_Float128 ",
+                                Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                             }
-                            CCFlavor::Gcc => Err(UnsupportedError::Other(
-                                "GCC isn't known to support f128 on this target".to_owned(),
-                            ))?,
-                            CCFlavor::Clang | CCFlavor::Zigcc
-                                if cfg!(any(
-                                    target_arch = "x86",
-                                    target_arch = "x86_64",
-                                    target_arch = "aarch64",
-                                    target_arch = "riscv32",
-                                    target_arch = "riscv64",
-                                    // Clang PowerPC support requires the VSX feature, which is only
-                                    // enabled by default on powerpc64le. Rust doesn't currently support
-                                    // `cfg(target_feature = "vsx").
-                                    all(target_arch = "powerpc64", target_endian = "little"),
-                                )) && !cfg!(any(
-                                    target_env = "msvc",
-                                    target_vendor = "apple",
-                                )) =>
-                            {
-                                "__float128 "
-                            }
-                            CCFlavor::Clang | CCFlavor::Zigcc => Err(UnsupportedError::Other(
-                                "Clang isn't known to support f128 on this target".to_owned(),
-                            ))?,
-                            CCFlavor::Msvc => Err(UnsupportedError::Other(
-                                "MSVC doesn't support f128".to_owned(),
-                            ))?,
                         }
-                    }
+
+                        CCFlavor::Clang | CCFlavor::Zigcc => {
+                            let msg = "Clang isn't known to support f128 on this target";
+                            match self.platform.target_arch {
+                                _ if is_apple || is_msvc => {
+                                    Err(UnsupportedError::Other(msg.to_owned()))?
+                                }
+                                Arch::X86
+                                | Arch::X86_64
+                                | Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64 => "__float128 ",
+                                Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                _ => Err(UnsupportedError::Other(msg.to_owned()))?,
+                            }
+                        }
+
+                        CCFlavor::Msvc => Err(UnsupportedError::Other(
+                            "MSVC doesn't support f128".to_owned(),
+                        ))?,
+                    },
                 };
                 (name.to_owned(), None)
             }
@@ -551,7 +548,7 @@ impl CcToolchain {
             }
             C => "",
             Cdecl => {
-                if self.platform.target_os.as_str().contains("windows") {
+                if self.platform.target_os == Os::Windows {
                     match self.cc_flavor {
                         Msvc => "__cdecl ",
                         Gcc | Clang | Zigcc => "__attribute__((cdecl)) ",
@@ -561,7 +558,7 @@ impl CcToolchain {
                 }
             }
             Stdcall => {
-                if self.platform.target_os.as_str().contains("windows") {
+                if self.platform.target_os == Os::Windows {
                     match self.cc_flavor {
                         Msvc => "__stdcall ",
                         Gcc | Clang | Zigcc => "__attribute__((stdcall)) ",
@@ -571,7 +568,7 @@ impl CcToolchain {
                 }
             }
             Fastcall => {
-                if self.platform.target_os.as_str().contains("windows") {
+                if self.platform.target_os == Os::Windows {
                     match self.cc_flavor {
                         Msvc => "__fastcall ",
                         Gcc | Clang | Zigcc => "__attribute__((fastcall)) ",
@@ -581,7 +578,7 @@ impl CcToolchain {
                 }
             }
             Vectorcall => {
-                if self.platform.target_os.as_str().contains("windows") {
+                if self.platform.target_os == Os::Windows {
                     match self.cc_flavor {
                         Msvc => "__vectorcall ",
                         Gcc | Clang | Zigcc => "__attribute__((vectorcall)) ",
