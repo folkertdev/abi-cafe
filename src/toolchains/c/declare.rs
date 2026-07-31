@@ -1,7 +1,7 @@
 use super::*;
 use kdl_script::parse::Attr;
 use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
-use platforms::{Arch, Env, Os};
+use platforms::{Arch, Env, Os, PointerWidth};
 use std::fmt::Write;
 
 impl CcToolchain {
@@ -69,6 +69,8 @@ impl CcToolchain {
 
         let is_msvc = matches!(self.platform.target_env, Env::Msvc);
 
+        let is_64bit = matches!(self.platform.target_pointer_width, PointerWidth::U64);
+
         let (prefix, suffix) = match state.types.realize_ty(ty) {
             // Structural types that don't need definitions but we should
             // intern the name of
@@ -78,12 +80,18 @@ impl CcToolchain {
                     PrimitiveTy::I16 => "int16_t ",
                     PrimitiveTy::I32 => "int32_t ",
                     PrimitiveTy::I64 => "int64_t ",
-                    PrimitiveTy::I128 => "__int128_t ",
+                    PrimitiveTy::I128 if is_64bit => "__int128_t ",
+                    PrimitiveTy::I128 => Err(UnsupportedError::Other(
+                        "32-bit and 16-bit c don't have i128?".to_owned(),
+                    ))?,
                     PrimitiveTy::U8 => "uint8_t ",
                     PrimitiveTy::U16 => "uint16_t ",
                     PrimitiveTy::U32 => "uint32_t ",
                     PrimitiveTy::U64 => "uint64_t ",
-                    PrimitiveTy::U128 => "__uint128_t ",
+                    PrimitiveTy::U128 if is_64bit => "__uint128_t ",
+                    PrimitiveTy::U128 => Err(UnsupportedError::Other(
+                        "32-bit and 16-bit c don't have u128?".to_owned(),
+                    ))?,
                     PrimitiveTy::F32 => "float ",
                     PrimitiveTy::F64 => "double ",
                     PrimitiveTy::Bool => "bool ",
