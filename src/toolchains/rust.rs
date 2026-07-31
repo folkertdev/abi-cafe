@@ -313,13 +313,22 @@ impl RustcToolchain {
         let host = host.expect("failed to get rustc host triple");
         let host = platforms::Platform::find(&host).expect("invalid target triple");
 
-        // Get rustc's cfgs for the platform we're interested in
-        // (Yes we don't have to pass `--target` because host but showing how we can get *any*)
+        let target = system_info.target.unwrap_or(host);
+
+        // Get rustc's cfgs for target platform.
         let rustc_cfgs = Command::new(command)
             .arg("--print=cfg")
-            .arg(format!("--target={host}"))
+            .arg(format!("--target={}", target.target_triple))
             .output()
             .expect("rustc failed to run");
+
+        if !rustc_cfgs.status.success() {
+            let stderr = String::from_utf8_lossy(&rustc_cfgs.stderr);
+            unreachable!(
+                "error looking up --target={}:\n{stderr}",
+                target.target_triple
+            );
+        }
         let rustc_cfgs_stdout = String::from_utf8(rustc_cfgs.stdout).unwrap();
         let cfgs = rustc_cfgs_stdout
             .lines()
@@ -339,7 +348,7 @@ impl RustcToolchain {
             command: command.to_owned(),
             version,
             is_nightly,
-            platform_info: PlatformInfo { target: host, cfgs },
+            platform_info: PlatformInfo { target, host, cfgs },
             platform,
             codegen_backend,
             debug: system_info.debug,

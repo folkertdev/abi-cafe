@@ -56,6 +56,7 @@ impl std::str::FromStr for OutputFormat {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub target: Option<&'static platforms::Platform>,
     pub output_format: OutputFormat,
     pub run_conventions: Vec<CallingConvention>,
     pub run_reprs: Vec<LangRepr>,
