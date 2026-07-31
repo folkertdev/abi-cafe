@@ -303,15 +303,13 @@ impl RustcToolchain {
             if let Some(val) = line.strip_prefix("host: ") {
                 host = Some(val.to_owned());
             }
-            if let Some(line) = line.strip_prefix("rustc ") {
-                if let Some((val, _rest)) = line.split_once(' ') {
-                    version = Some(val.to_owned())
-                }
+            if let Some(val) = line.strip_prefix("release: ") {
+                version = Some(val.to_owned());
             }
         }
         let version = version.expect("failed to get rustc version");
         let host = host.expect("failed to get rustc host triple");
-        let is_nightly = version.contains("nightly");
+        let is_nightly = version.contains("nightly") || version.contains("dev");
 
         // Get rustc's cfgs for the platform we're interested in
         // (Yes we don't have to pass `--target` because host but showing how we can get *any*)
