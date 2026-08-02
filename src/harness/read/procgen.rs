@@ -122,7 +122,7 @@ fn add_perturbs_struct(
         // Add the function
         add_func(
             out,
-            &format!("val_in_{idx}_perturbed_{label}"),
+            &format!("struct_in_{idx}_perturbed_{label}"),
             &[&struct_ty],
             &[],
         )?;
