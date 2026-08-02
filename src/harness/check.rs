@@ -174,6 +174,11 @@ impl TestHarness {
             let arg = expected_val.arg();
             let mut expected = vec![0; caller_val.bytes.len().max(callee_val.bytes.len())];
             expected_val.fill_bytes(&mut expected);
+            // The generators lay values out little-endian, but both sides report the
+            // bytes as the target actually stores them, so flip ours to match
+            if let Endian::Big = self.toolchains.platform_info.target.target_endian {
+                expected.reverse();
+            }
             // FIXME: this doesn't do the right thing for enums
             // <https://github.com/Gankra/abi-cafe/issues/34>
             return Err(CheckFailure::ValMismatch {
