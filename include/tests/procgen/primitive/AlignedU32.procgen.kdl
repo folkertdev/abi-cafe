@@ -1,0 +1,6 @@
+// A 32-bit integer with a 16-byte alignment. 
+//
+// This only bumps the alignment, not the size.
+
+@align 16
+alias "AlignedU32" "u32"

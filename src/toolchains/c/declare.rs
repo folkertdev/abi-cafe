@@ -1,5 +1,5 @@
 use super::*;
-use kdl_script::parse::Attr;
+use kdl_script::parse::{Attr, AttrAligned};
 use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
 use platforms::{Arch, Env, Os, PointerWidth};
 use std::fmt::Write;
@@ -248,13 +248,28 @@ impl CcToolchain {
                 writeln!(f, "typedef struct {ty_name} {ty_name};")?;
             }
             Ty::Alias(AliasTy { name, real, attrs }) => {
-                if !attrs.is_empty() {
-                    return Err(UnsupportedError::Other(
-                        "don't yet know how to apply attrs to aliases".to_string(),
-                    ))?;
+                let mut align = None;
+                for attr in attrs {
+                    match attr {
+                        Attr::Align(AttrAligned { align: a }) => {
+                            align = Ord::max(align, Some(a.val))
+                        }
+                        _ => {
+                            return Err(UnsupportedError::Other(
+                                "don't yet know how to apply this attr to aliases".to_string(),
+                            ))?
+                        }
+                    }
                 }
                 let (pre, post) = &state.tynames[real];
-                writeln!(f, "typedef {pre}{name}{post};\n")?;
+
+                // E.g. `typedef int x __attribute__((aligned(16)))`, aligns the type but does not
+                // increase its size.
+                let suffix = match align {
+                    Some(a) => format!(" __attribute__((aligned({a})))"),
+                    None => String::new(),
+                };
+                writeln!(f, "typedef {pre}{name}{post}{suffix};\n")?;
             }
             Ty::Pun(..) => {
                 // Puns should be evaporated by the type name interner
