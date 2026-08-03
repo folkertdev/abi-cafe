@@ -10,7 +10,7 @@ use kdl_script::PunEnv;
 pub mod c;
 pub mod rust;
 
-pub use c::CcToolchain;
+pub use c::{CCFlavor, CcToolchain};
 pub use rust::RustcToolchain;
 
 pub const TOOLCHAIN_RUSTC: &str = "rustc";
@@ -101,6 +101,13 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
             &mut toolchains,
             name,
             CcToolchain::new(cfg, platform_info.target, name),
+        );
+    }
+    for (flavor, name, path) in &cfg.cc_toolchains {
+        add_toolchain(
+            &mut toolchains,
+            name,
+            CcToolchain::new_custom(cfg, platform_info.target, *flavor, path),
         );
     }
 

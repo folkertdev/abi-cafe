@@ -69,6 +69,7 @@ pub struct Config {
     pub run_writers: Vec<WriteImpl>,
     pub run_selections: Vec<FunctionSelector>,
     pub minimizing_write_impl: WriteImpl,
+    pub cc_toolchains: Vec<(CCFlavor, String, Utf8PathBuf)>,
     pub rustc_codegen_backends: Vec<(String, String)>,
     pub disable_builtin_tests: bool,
     pub disable_builtin_rules: bool,
