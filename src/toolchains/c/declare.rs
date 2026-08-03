@@ -296,8 +296,8 @@ impl CcToolchain {
             // Nominal types we need to emit a decl for
             Ty::Struct(struct_ty) => {
                 // Emit an actual struct decl
-                self.generate_repr_attr(f, state, &struct_ty.attrs, "struct")?;
-                writeln!(f, "typedef struct {} {{", struct_ty.name)?;
+                let inner_attrs = self.generate_repr_attr(f, state, &struct_ty.attrs, "struct")?;
+                writeln!(f, "typedef struct {}{} {{", inner_attrs, struct_ty.name)?;
                 f.add_indent(1);
                 for field in &struct_ty.fields {
                     let field_name = &field.ident;
@@ -309,8 +309,8 @@ impl CcToolchain {
             }
             Ty::Union(union_ty) => {
                 // Emit an actual union decl
-                self.generate_repr_attr(f, state, &union_ty.attrs, "union")?;
-                writeln!(f, "typedef union {} {{", union_ty.name)?;
+                let inner_attrs = self.generate_repr_attr(f, state, &union_ty.attrs, "union")?;
+                writeln!(f, "typedef union {}{} {{", inner_attrs, union_ty.name)?;
                 f.add_indent(1);
                 for field in &union_ty.fields {
                     let field_name = &field.ident;
@@ -322,8 +322,8 @@ impl CcToolchain {
             }
             Ty::Enum(enum_ty) => {
                 // Emit an actual enum decl
-                self.generate_repr_attr(f, state, &enum_ty.attrs, "enum")?;
-                writeln!(f, "typedef enum {} {{", enum_ty.name)?;
+                let inner_attrs = self.generate_repr_attr(f, state, &enum_ty.attrs, "enum")?;
+                writeln!(f, "typedef enum {}{} {{", inner_attrs, enum_ty.name)?;
                 f.add_indent(1);
                 for variant in &enum_ty.variants {
                     let variant_name = &variant.name;
@@ -416,22 +416,22 @@ impl CcToolchain {
         state: &TestState,
         attrs: &[Attr],
         _ty_style: &str,
-    ) -> Result<(), GenerateError> {
+    ) -> Result<String, GenerateError> {
         use kdl_script::parse::{AttrAligned, AttrPacked, AttrPassthrough, AttrRepr, Repr};
-        if !attrs.is_empty() {
-            return Err(UnsupportedError::Other(
-                "c doesn't support attrs yet".to_owned(),
-            ))?;
-        }
 
         let mut default_lang_repr = true;
         let mut lang_repr = None;
         let mut repr_attrs = vec![];
+        let mut inner_attrs = vec![];
         let mut other_attrs = vec![];
         for attr in attrs {
             match attr {
-                Attr::Align(AttrAligned { align: _ }) => {
-                    return Err(UnsupportedError::Other("@align not implemented".to_owned()))?;
+                Attr::Align(AttrAligned { align }) => {
+                    // This is an "inner" attribute that is applied to the type, not the typedef.
+                    //
+                    // Applying the attribute only to the typedef raises the alignment but not the
+                    // size. Applying it to the type raises both, matching `#[repr(align(N))]`.
+                    inner_attrs.push(format!("__attribute__((aligned({})))", align.val));
                 }
                 Attr::Packed(AttrPacked {}) => {
                     return Err(UnsupportedError::Other(
@@ -486,7 +486,11 @@ impl CcToolchain {
         for attr in other_attrs {
             writeln!(f, "{}", attr)?;
         }
-        Ok(())
+        let inner = inner_attrs
+            .iter()
+            .map(|attr| format!("{attr} "))
+            .collect::<String>();
+        Ok(inner)
     }
 
     pub fn generate_signature(
