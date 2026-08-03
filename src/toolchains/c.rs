@@ -25,16 +25,68 @@ const INDENT: &str = "    ";
 pub struct CcToolchain {
     cc_flavor: CCFlavor,
     platform: &'static platforms::Platform,
-    mode: &'static str,
+    mode: CCMode,
+    compiler: Option<Utf8PathBuf>,
     debug: bool,
 }
 
-#[derive(PartialEq)]
-enum CCFlavor {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CCFlavor {
     Clang,
     Gcc,
     Msvc,
     Zigcc,
+}
+
+impl CCFlavor {
+    pub fn from_name(name: &str) -> Option<Self> {
+        let flavor = match name {
+            TOOLCHAIN_GCC => CCFlavor::Gcc,
+            TOOLCHAIN_CLANG => CCFlavor::Clang,
+            TOOLCHAIN_MSVC => CCFlavor::Msvc,
+            TOOLCHAIN_ZIGCC => CCFlavor::Zigcc,
+            _ => return None,
+        };
+        Some(flavor)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CCMode {
+    CC,
+    Clang,
+    Gcc,
+    Msvc,
+    Zigcc,
+}
+
+impl CCMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::CC => TOOLCHAIN_CC,
+            Self::Clang => TOOLCHAIN_CLANG,
+            Self::Gcc => TOOLCHAIN_GCC,
+            Self::Msvc => TOOLCHAIN_MSVC,
+            Self::Zigcc => TOOLCHAIN_ZIGCC,
+        }
+    }
+}
+
+impl From<CCFlavor> for CCMode {
+    fn from(value: CCFlavor) -> Self {
+        match value {
+            CCFlavor::Gcc => CCMode::Gcc,
+            CCFlavor::Clang => CCMode::Clang,
+            CCFlavor::Msvc => CCMode::Msvc,
+            CCFlavor::Zigcc => CCMode::Zigcc,
+        }
+    }
+}
+
+impl From<CCMode> for ToolchainId {
+    fn from(value: CCMode) -> Self {
+        value.as_str().to_owned()
+    }
 }
 
 pub struct TestState {
@@ -81,12 +133,11 @@ impl Toolchain for CcToolchain {
         lib_name: &str,
     ) -> Result<String, BuildError> {
         match self.mode {
-            "cc" => self.compile_cc(src_path, out_dir, lib_name),
-            "gcc" => self.compile_gcc(src_path, out_dir, lib_name),
-            "clang" => self.compile_clang(src_path, out_dir, lib_name),
-            "msvc" => self.compile_msvc(src_path, out_dir, lib_name),
-            "zigcc" => self.compile_zigcc(src_path, out_dir, lib_name),
-            _ => unimplemented!("unknown c compiler"),
+            CCMode::CC => self.compile_cc(src_path, out_dir, lib_name),
+            CCMode::Gcc => self.compile_gcc(src_path, out_dir, lib_name),
+            CCMode::Clang => self.compile_clang(src_path, out_dir, lib_name),
+            CCMode::Msvc => self.compile_msvc(src_path, out_dir, lib_name),
+            CCMode::Zigcc => self.compile_zigcc(src_path, out_dir, lib_name),
         }
     }
 
@@ -97,12 +148,11 @@ impl Toolchain for CcToolchain {
         lib_name: &str,
     ) -> Result<String, BuildError> {
         match self.mode {
-            "cc" => self.compile_cc(src_path, out_dir, lib_name),
-            "gcc" => self.compile_gcc(src_path, out_dir, lib_name),
-            "clang" => self.compile_clang(src_path, out_dir, lib_name),
-            "msvc" => self.compile_msvc(src_path, out_dir, lib_name),
-            "zigcc" => self.compile_zigcc(src_path, out_dir, lib_name),
-            _ => unimplemented!("unknown c compiler"),
+            CCMode::CC => self.compile_cc(src_path, out_dir, lib_name),
+            CCMode::Gcc => self.compile_gcc(src_path, out_dir, lib_name),
+            CCMode::Clang => self.compile_clang(src_path, out_dir, lib_name),
+            CCMode::Msvc => self.compile_msvc(src_path, out_dir, lib_name),
+            CCMode::Zigcc => self.compile_zigcc(src_path, out_dir, lib_name),
         }
     }
 
@@ -270,11 +320,11 @@ impl CcToolchain {
 impl CcToolchain {
     pub fn new(system_info: &Config, platform: &'static platforms::Platform, mode: CCMode) -> Self {
         let cc_flavor = match mode {
-            TOOLCHAIN_GCC => CCFlavor::Gcc,
-            TOOLCHAIN_CLANG => CCFlavor::Clang,
-            TOOLCHAIN_MSVC => CCFlavor::Msvc,
-            TOOLCHAIN_ZIGCC => CCFlavor::Zigcc,
-            TOOLCHAIN_CC => {
+            CCMode::Gcc => CCFlavor::Gcc,
+            CCMode::Clang => CCFlavor::Clang,
+            CCMode::Msvc => CCFlavor::Msvc,
+            CCMode::Zigcc => CCFlavor::Zigcc,
+            CCMode::CC => {
                 let compiler = cc::Build::new()
                     .cargo_metadata(false)
                     .cargo_debug(false)
@@ -291,15 +341,42 @@ impl CcToolchain {
                     panic!("Unknown compiler flavour for CC");
                 }
             }
-            mode => panic!("Unknown CcToolchain mode {mode:?}"),
         };
 
         Self {
             cc_flavor,
             platform,
             mode,
+            compiler: None,
             debug: system_info.debug,
         }
+    }
+
+    /// A user-supplied compiler (`--add-cc-toolchain flavor:name:path`)
+    pub fn new_custom(
+        system_info: &Config,
+        platform: &'static platforms::Platform,
+        cc_flavor: CCFlavor,
+        compiler: &Utf8Path,
+    ) -> Self {
+        Self {
+            mode: CCMode::from(cc_flavor),
+            cc_flavor,
+            platform,
+            compiler: Some(compiler.to_owned()),
+            debug: system_info.debug,
+        }
+    }
+
+    /// The binary to invoke, which the user can override per-toolchain
+    fn compiler(&self, default: &'static str) -> Utf8PathBuf {
+        self.compiler.clone().unwrap_or_else(|| default.into())
+    }
+
+    /// Tell clang (and zig cc, which is clang in disguise) what we're building for.
+    /// gcc gets that from its own triple, so it has no equivalent.
+    fn clang_target_flag(&self) -> String {
+        format!("--target={}", self.platform.target_triple)
     }
 
     fn extra_flags(&self) -> &[&str] {
@@ -338,15 +415,28 @@ impl CcToolchain {
         Ok(String::from(lib_name))
     }
 
-    fn compile_clang(
+    /// Run a command, and complain if it fails (rather than silently carrying on
+    /// to produce a confusing link error later)
+    fn run(&self, mut cmd: Command) -> Result<(), BuildError> {
+        debug!("running: {:?}", cmd);
+        let out = cmd.output()?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(BuildError::CCompileFailed(out))
+        }
+    }
+
+    /// Add the flags every c compiler we drive wants, run it, and archive the result
+    fn compile_and_archive(
         &self,
+        mut cmd: Command,
         src_path: &Utf8Path,
         out_dir: &Utf8Path,
         lib_name: &str,
     ) -> Result<String, BuildError> {
         let obj_path = out_dir.join(format!("{lib_name}.o"));
         let lib_path = out_dir.join(format!("lib{lib_name}.a"));
-        let mut cmd = Command::new("clang");
         for flag in self.extra_flags() {
             cmd.arg(flag);
         }
@@ -359,15 +449,29 @@ impl CcToolchain {
             .arg("-o")
             .arg(&obj_path)
             .arg("-c")
-            .arg(src_path)
-            .status()?;
-        Command::new("ar")
-            .arg("cq")
-            .arg(&lib_path)
-            .arg(&obj_path)
-            .status()?;
-        Command::new("ar").arg("s").arg(&lib_path).status()?;
+            .arg(src_path);
+        self.run(cmd)?;
+
+        let mut ar = Command::new("ar");
+        ar.arg("cq").arg(&lib_path).arg(&obj_path);
+        self.run(ar)?;
+
+        let mut ar = Command::new("ar");
+        ar.arg("s").arg(&lib_path);
+        self.run(ar)?;
+
         Ok(String::from(lib_name))
+    }
+
+    fn compile_clang(
+        &self,
+        src_path: &Utf8Path,
+        out_dir: &Utf8Path,
+        lib_name: &str,
+    ) -> Result<String, BuildError> {
+        let mut cmd = Command::new(self.compiler(TOOLCHAIN_CLANG));
+        cmd.arg(self.clang_target_flag());
+        self.compile_and_archive(cmd, src_path, out_dir, lib_name)
     }
 
     fn compile_zigcc(
@@ -376,31 +480,9 @@ impl CcToolchain {
         out_dir: &Utf8Path,
         lib_name: &str,
     ) -> Result<String, BuildError> {
-        let obj_path = out_dir.join(format!("{lib_name}.o"));
-        let lib_path = out_dir.join(format!("lib{lib_name}.a"));
-        let mut cmd = Command::new("zig");
-        cmd.arg("cc");
-        for flag in self.extra_flags() {
-            cmd.arg(flag);
-        }
-        if self.debug {
-            cmd.arg("-g");
-        }
-        cmd.arg("-ffunction-sections")
-            .arg("-fdata-sections")
-            .arg("-fPIC")
-            .arg("-o")
-            .arg(&obj_path)
-            .arg("-c")
-            .arg(src_path)
-            .status()?;
-        Command::new("ar")
-            .arg("cq")
-            .arg(&lib_path)
-            .arg(&obj_path)
-            .status()?;
-        Command::new("ar").arg("s").arg(&lib_path).status()?;
-        Ok(String::from(lib_name))
+        let mut cmd = Command::new(self.compiler("zig"));
+        cmd.arg("cc").arg(self.clang_target_flag());
+        self.compile_and_archive(cmd, src_path, out_dir, lib_name)
     }
 
     fn compile_gcc(
@@ -409,30 +491,8 @@ impl CcToolchain {
         out_dir: &Utf8Path,
         lib_name: &str,
     ) -> Result<String, BuildError> {
-        let obj_path = out_dir.join(format!("{lib_name}.o"));
-        let lib_path = out_dir.join(format!("lib{lib_name}.a"));
-        let mut cmd = Command::new("gcc");
-        for flag in self.extra_flags() {
-            cmd.arg(flag);
-        }
-        if self.debug {
-            cmd.arg("-g");
-        }
-        cmd.arg("-ffunction-sections")
-            .arg("-fdata-sections")
-            .arg("-fPIC")
-            .arg("-o")
-            .arg(&obj_path)
-            .arg("-c")
-            .arg(src_path)
-            .status()?;
-        Command::new("ar")
-            .arg("cq")
-            .arg(&lib_path)
-            .arg(&obj_path)
-            .status()?;
-        Command::new("ar").arg("s").arg(&lib_path).status()?;
-        Ok(String::from(lib_name))
+        let cmd = Command::new(self.compiler(TOOLCHAIN_GCC));
+        self.compile_and_archive(cmd, src_path, out_dir, lib_name)
     }
 
     fn compile_msvc(

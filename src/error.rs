@@ -68,6 +68,10 @@ pub enum BuildError {
     RustCompile(std::process::Output),
     #[error("c compile error\n{0}")]
     CCompile(#[from] cc::Error),
+    #[error("c compile error \n{} \n{}",
+        String::from_utf8_lossy(&.0.stdout),
+        String::from_utf8_lossy(&.0.stderr))]
+    CCompileFailed(std::process::Output),
 }
 
 #[allow(clippy::enum_variant_names)]

@@ -124,6 +124,16 @@ struct Cli {
     #[clap(long, default_value_t = OutputFormat::Human)]
     output_format: OutputFormat,
 
+    /// add a c toolchain, with the syntax "flavor:toolchain_name:path/to/compiler"
+    ///
+    /// flavor is one of gcc, clang, msvc or zigcc.
+    ///
+    /// toolchain_name is an arbitrary id to refer to it with in --toolchains and --pairs.
+    ///
+    /// e.g. "clang:custom-clang:/path/to/llvm/bin/clang", then --pairs custom-clang_calls_gcc
+    #[clap(long, value_delimiter(','))]
+    add_cc_toolchain: Vec<String>,
+
     /// add a rustc_codegen_backend, with the syntax "toolchain_name:path/to/backend"
     ///
     /// toolchain_name here is an arbitrary id that will be used to uniquely identify
@@ -187,6 +197,7 @@ pub fn make_app() -> Config {
         target,
         linker,
         output_format,
+        add_cc_toolchain,
         add_rustc_codegen_backend,
         add_tests,
         rules,
@@ -246,6 +257,26 @@ pub fn make_app() -> Config {
         .map(|(a, b)| (String::from(a), String::from(b)))
         .collect();
 
+    let cc_toolchains = add_cc_toolchain
+        .iter()
+        .map(|spec| {
+            let mut parts = spec.split(':');
+
+            let (Some(flavor), Some(name), Some(path), None) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
+            else {
+                panic!("invalid syntax, must be 'flavor:toolchain_name:path/to/compiler'");
+            };
+
+            let Some(flavor) = CCFlavor::from_name(flavor) else {
+                panic!(
+                    "unknown c toolchain flavor {flavor}, must be one of gcc, clang, msvc, zigcc"
+                );
+            };
+            (flavor, name.to_owned(), Utf8PathBuf::from(path))
+        })
+        .collect();
+
     for (name, _path) in &rustc_codegen_backends {
         if !run_pairs.iter().any(|(a, b)| a == name || b == name) {
             warn!(
@@ -302,6 +333,7 @@ Hint: Try using `--pairs {name}_calls_rustc` or `--pairs rustc_calls_{name}`.
         run_toolchains,
         run_tests,
         run_pairs,
+        cc_toolchains,
         rustc_codegen_backends,
         run_values,
         run_writers,

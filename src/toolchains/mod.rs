@@ -10,7 +10,7 @@ use kdl_script::PunEnv;
 pub mod c;
 pub mod rust;
 
-pub use c::CcToolchain;
+pub use c::{CCFlavor, CCMode, CcToolchain};
 pub use rust::RustcToolchain;
 
 pub const TOOLCHAIN_RUSTC: &str = "rustc";
@@ -20,12 +20,12 @@ pub const TOOLCHAIN_CLANG: &str = "clang";
 pub const TOOLCHAIN_MSVC: &str = "msvc";
 pub const TOOLCHAIN_ZIGCC: &str = "zigcc";
 
-const C_TOOLCHAINS: &[&str] = &[
-    TOOLCHAIN_CC,
-    TOOLCHAIN_GCC,
-    TOOLCHAIN_CLANG,
-    TOOLCHAIN_MSVC,
-    TOOLCHAIN_ZIGCC,
+const C_TOOLCHAINS: &[CCMode] = &[
+    CCMode::CC,
+    CCMode::Clang,
+    CCMode::Gcc,
+    CCMode::Msvc,
+    CCMode::Zigcc,
 ];
 
 /// A compiler/language toolchain!
@@ -101,6 +101,13 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
             &mut toolchains,
             name,
             CcToolchain::new(cfg, platform_info.target, name),
+        );
+    }
+    for (flavor, name, path) in &cfg.cc_toolchains {
+        add_toolchain(
+            &mut toolchains,
+            name,
+            CcToolchain::new_custom(cfg, platform_info.target, *flavor, path),
         );
     }
 
