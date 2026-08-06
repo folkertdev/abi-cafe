@@ -137,10 +137,15 @@ impl CcToolchain {
                                 Arch::X86
                                 | Arch::X86_64
                                 | Arch::AArch64
+                                | Arch::Sparc64
+                                | Arch::Mips64
+                                | Arch::Mips64r6
+                                | Arch::S390X
                                 | Arch::Riscv32
                                 | Arch::Riscv64
                                 | Arch::Loongarch64 => "_Float128 ",
                                 Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                Arch::Sparc => "long double ",
                                 _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                             }
                         }
@@ -151,12 +156,17 @@ impl CcToolchain {
                                 _ if is_apple || is_msvc => {
                                     Err(UnsupportedError::Other(msg.to_owned()))?
                                 }
-                                Arch::X86
-                                | Arch::X86_64
-                                | Arch::AArch64
-                                | Arch::Riscv32
-                                | Arch::Riscv64 => "__float128 ",
+                                Arch::X86 | Arch::X86_64 => "__float128 ",
                                 Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                Arch::Mips64 | Arch::Mips64r6 | Arch::S390X => "_Float128 ",
+
+                                // F128 coincides with long double.
+                                Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64
+                                | Arch::Loongarch64
+                                | Arch::Sparc
+                                | Arch::Sparc64 => "long double ",
                                 _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                             }
                         }
