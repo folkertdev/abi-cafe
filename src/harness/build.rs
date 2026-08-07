@@ -88,12 +88,28 @@ impl TestHarness {
             .expect("failed to acquire concurrency limit semaphore");
         let bin_name = self.bin_name(key);
         info!("linking     {bin_name}");
+        let toolchain = self.linking_toolchain(key);
+        let ext = toolchain.src_ext();
         let bin_main = if let WriteImpl::HarnessCallback = key.options.val_writer {
-            self.paths.harness_bin_main_file()
+            self.paths.harness_bin_main_file(ext)
         } else {
-            self.paths.freestanding_bin_main_file()
+            self.paths.freestanding_bin_main_file(ext)
         };
-        build_harness_main(&self.toolchains, &self.paths, build, &bin_name, &bin_main)
+        toolchain.link_bin(&bin_main, &self.paths.out_dir, build, &bin_name)
+    }
+
+    /// Which toolchain should link the two sides together?
+    ///
+    /// When both sides are C, use a C toolchain to link them, so that we don't need a rust `std`
+    /// for the target. When rust is involved, use rust, we need the `std` anyway.
+    fn linking_toolchain(&self, key: &TestKey) -> Arc<dyn Toolchain + Send + Sync> {
+        let caller = self.toolchain_by_test_key(key, CallSide::Caller);
+        let callee = self.toolchain_by_test_key(key, CallSide::Callee);
+        if caller.lang() == "c" && callee.lang() == "c" {
+            caller
+        } else {
+            self.toolchains.toolchains[TOOLCHAIN_RUSTC].clone()
+        }
     }
 
     fn static_lib_name(&self, key: &TestKey, call_side: CallSide) -> String {
@@ -160,53 +176,6 @@ fn build_harness_dylib(
         .arg("-o")
         .arg(&output)
         .arg(&src);
-    if let Some(linker) = &toolchains.linker {
-        cmd.arg(format!("-Clinker={linker}"));
-    }
-    if toolchains.debug {
-        cmd.arg("-g");
-    }
-
-    debug!("running: {:?}", cmd);
-    let out = cmd.output()?;
-
-    if !out.status.success() {
-        Err(LinkError::RustLink(out))
-    } else {
-        Ok(LinkOutput { test_bin: output })
-    }
-}
-
-/// Compile and link the test harness with the two sides of the FFI boundary.
-fn build_harness_main(
-    toolchains: &Toolchains,
-    paths: &Paths,
-    build: &BuildOutput,
-    bin_name: &str,
-    bin_main: &Utf8Path,
-) -> Result<LinkOutput, LinkError> {
-    let target = &toolchains.platform_info.target;
-    let rustc = &toolchains.rustc_command;
-
-    let output = paths.out_dir.join(bin_name);
-    let mut cmd = Command::new(rustc);
-    cmd.arg("-v")
-        .arg("-L")
-        .arg(&paths.out_dir)
-        .arg("-l")
-        .arg(&build.caller_lib)
-        .arg("-l")
-        .arg(&build.callee_lib)
-        .arg("--crate-type")
-        .arg("bin")
-        .arg("--target")
-        .arg(target.target_triple)
-        // .arg("-Csave-temps=y")
-        // .arg("--out-dir")
-        // .arg("target/temp/")
-        .arg("-o")
-        .arg(&output)
-        .arg(bin_main);
     if let Some(linker) = &toolchains.linker {
         cmd.arg(format!("-Clinker={linker}"));
     }

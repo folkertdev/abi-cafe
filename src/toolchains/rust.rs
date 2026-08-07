@@ -61,6 +61,8 @@ pub struct RustcToolchain {
     platform: Platform,
     /// What codegen backend are we using?
     codegen_backend: Option<String>,
+    /// What linker should rustc use, if not its default?
+    linker: Option<Utf8PathBuf>,
     /// Enable debuginfo
     debug: bool,
 }
@@ -122,6 +124,49 @@ impl Toolchain for RustcToolchain {
     ) -> Result<String, BuildError> {
         // Currently no need to be different
         self.compile_callee(src_path, out_dir, lib_name)
+    }
+
+    fn link_bin(
+        &self,
+        main_src: &Utf8Path,
+        out_dir: &Utf8Path,
+        build: &BuildOutput,
+        bin_name: &str,
+    ) -> Result<LinkOutput, LinkError> {
+        let output = out_dir.join(bin_name);
+        let mut cmd = Command::new(&self.command);
+        cmd.arg("-v")
+            .arg("-L")
+            .arg(out_dir)
+            .arg("-l")
+            .arg(&build.caller_lib)
+            .arg("-l")
+            .arg(&build.callee_lib)
+            .arg("--crate-type")
+            .arg("bin")
+            .arg("--target")
+            .arg(self.platform_info.target.target_triple)
+            // .arg("-Csave-temps=y")
+            // .arg("--out-dir")
+            // .arg("target/temp/")
+            .arg("-o")
+            .arg(&output)
+            .arg(main_src);
+        if let Some(linker) = &self.linker {
+            cmd.arg(format!("-Clinker={linker}"));
+        }
+        if self.debug {
+            cmd.arg("-g");
+        }
+
+        debug!("running: {:?}", cmd);
+        let out = cmd.output()?;
+
+        if !out.status.success() {
+            Err(LinkError::RustLink(out))
+        } else {
+            Ok(LinkOutput { test_bin: output })
+        }
     }
 
     fn generate_callee(&self, f: &mut dyn Write, test: TestImpl) -> Result<(), GenerateError> {
@@ -351,6 +396,7 @@ impl RustcToolchain {
             platform_info: PlatformInfo { target, host, cfgs },
             platform,
             codegen_backend,
+            linker: system_info.linker.clone(),
             debug: system_info.debug,
         }
     }
