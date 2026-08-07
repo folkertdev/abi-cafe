@@ -134,6 +134,10 @@ pub enum LinkError {
         String::from_utf8_lossy(&.0.stdout),
         String::from_utf8_lossy(&.0.stderr))]
     RustLink(std::process::Output),
+    #[error("c link error \n{} \n{}",
+        String::from_utf8_lossy(&.0.stdout),
+        String::from_utf8_lossy(&.0.stderr))]
+    CLink(std::process::Output),
 }
 
 #[derive(Debug, thiserror::Error, Diagnostic)]

@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
+use crate::harness::report::{BuildOutput, LinkOutput};
 use crate::harness::test::*;
 use crate::{error::*, SortedMap};
 
@@ -30,7 +31,6 @@ const C_TOOLCHAINS: &[&str] = &[
 
 /// A compiler/language toolchain!
 pub trait Toolchain {
-    #[allow(dead_code)]
     fn lang(&self) -> &'static str;
     fn src_ext(&self) -> &'static str;
     fn pun_env(&self) -> Arc<PunEnv>;
@@ -49,6 +49,16 @@ pub trait Toolchain {
         out_dir: &Utf8Path,
         lib_name: &str,
     ) -> Result<String, BuildError>;
+
+    /// Link the caller and callee static libs together with `main_src` (a main
+    /// written in this toolchain's language) into a runnable test binary.
+    fn link_bin(
+        &self,
+        main_src: &Utf8Path,
+        out_dir: &Utf8Path,
+        build: &BuildOutput,
+        bin_name: &str,
+    ) -> Result<LinkOutput, LinkError>;
 }
 
 /// All the toolchains

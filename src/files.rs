@@ -7,6 +7,10 @@ use crate::GenerateError;
 
 const INCLUDES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/include");
 
+/// The `src_ext` of every language that can link a test binary. Each one needs
+/// its own `harness_main` and `main` in `include/harness/`.
+const LINKABLE_EXTS: &[&str] = &["rs", "c"];
+
 #[derive(Debug, Clone)]
 pub struct Paths {
     pub target_dir: Utf8PathBuf,
@@ -19,11 +23,11 @@ impl Paths {
     pub fn harness_dylib_main_file(&self) -> Utf8PathBuf {
         self.out_dir.join("harness_lib.rs")
     }
-    pub fn harness_bin_main_file(&self) -> Utf8PathBuf {
-        self.out_dir.join("harness_main.rs")
+    pub fn harness_bin_main_file(&self, ext: &str) -> Utf8PathBuf {
+        self.out_dir.join(format!("harness_main.{ext}"))
     }
-    pub fn freestanding_bin_main_file(&self) -> Utf8PathBuf {
-        self.out_dir.join("main.rs")
+    pub fn freestanding_bin_main_file(&self, ext: &str) -> Utf8PathBuf {
+        self.out_dir.join(format!("main.{ext}"))
     }
 
     /// Delete and recreate the build dir
@@ -41,21 +45,18 @@ impl Paths {
             file.write_all(harness_file_contents.as_bytes())
                 .expect("failed to initialize harness_lib.rs");
         }
-        {
-            let harness_file_contents = get_file("harness/harness_main.rs");
-            let harness_file_path = self.harness_bin_main_file();
-            let mut file = std::fs::File::create_new(harness_file_path)
-                .expect("failed to create harness_main.rs");
-            file.write_all(harness_file_contents.as_bytes())
-                .expect("failed to initialize harness_main.rs");
-        }
-        {
-            let harness_file_contents = get_file("harness/main.rs");
-            let harness_file_path = self.freestanding_bin_main_file();
-            let mut file =
-                std::fs::File::create_new(harness_file_path).expect("failed to create main.rs");
-            file.write_all(harness_file_contents.as_bytes())
-                .expect("failed to initialize main.rs");
+        for ext in LINKABLE_EXTS {
+            for path in [
+                self.harness_bin_main_file(ext),
+                self.freestanding_bin_main_file(ext),
+            ] {
+                let harness_file_contents =
+                    get_file(format!("harness/{}", path.file_name().unwrap()));
+                let mut file = std::fs::File::create_new(&path)
+                    .unwrap_or_else(|_| panic!("failed to create {path}"));
+                file.write_all(harness_file_contents.as_bytes())
+                    .unwrap_or_else(|_| panic!("failed to initialize {path}"));
+            }
         }
         Ok(())
     }

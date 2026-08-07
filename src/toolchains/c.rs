@@ -27,6 +27,7 @@ pub struct CcToolchain {
     platform: &'static platforms::Platform,
     mode: &'static str,
     compiler: Option<Utf8PathBuf>,
+    linker: Option<Utf8PathBuf>,
     debug: bool,
 }
 
@@ -140,6 +141,37 @@ impl Toolchain for CcToolchain {
         let mut f = Fivemat::new(f, INDENT);
         let mut state = TestState::new(test);
         self.generate_caller_impl(&mut f, &mut state)
+    }
+
+    fn link_bin(
+        &self,
+        main_src: &Utf8Path,
+        out_dir: &Utf8Path,
+        build: &BuildOutput,
+        bin_name: &str,
+    ) -> Result<LinkOutput, LinkError> {
+        let output = out_dir.join(bin_name);
+        let mut cmd = self.link_command();
+        if self.debug {
+            cmd.arg("-g");
+        }
+        // The caller references the callee, so it has to come first
+        cmd.arg("-o")
+            .arg(&output)
+            .arg(main_src)
+            .arg("-L")
+            .arg(out_dir)
+            .arg(format!("-l{}", build.caller_lib))
+            .arg(format!("-l{}", build.callee_lib));
+
+        debug!("running: {:?}", cmd);
+        let out = cmd.output()?;
+
+        if !out.status.success() {
+            Err(LinkError::CLink(out))
+        } else {
+            Ok(LinkOutput { test_bin: output })
+        }
     }
 }
 
@@ -327,6 +359,7 @@ impl CcToolchain {
             platform,
             mode,
             compiler: None,
+            linker: system_info.linker.clone(),
             debug: system_info.debug,
         }
     }
@@ -343,6 +376,7 @@ impl CcToolchain {
             cc_flavor,
             platform,
             compiler: Some(compiler.to_owned()),
+            linker: system_info.linker.clone(),
             debug: system_info.debug,
         }
     }
@@ -365,6 +399,33 @@ impl CcToolchain {
             _ => rust_triple.to_owned(),
         };
         format!("--target={clang_triple}")
+    }
+
+    /// The driver that links the final test binary.
+    ///
+    /// An explicit `--linker` wins, because that's the driver rustc would have
+    /// been told to use, and for a cross target it's the one that knows where
+    /// the sysroot is. Otherwise we just drive our own compiler.
+    fn link_command(&self) -> Command {
+        if let Some(linker) = &self.linker {
+            return Command::new(linker);
+        }
+        match self.mode {
+            // Let the cc crate figure out what the host's `cc` even is
+            "cc" => cc::Build::new().get_compiler().to_command(),
+            "gcc" => Command::new(self.compiler(TOOLCHAIN_GCC)),
+            "clang" => {
+                let mut cmd = Command::new(self.compiler(TOOLCHAIN_CLANG));
+                cmd.arg(self.clang_target_flag());
+                cmd
+            }
+            "zigcc" => {
+                let mut cmd = Command::new(self.compiler("zig"));
+                cmd.arg("cc").arg(self.clang_target_flag());
+                cmd
+            }
+            _ => unimplemented!("unknown c compiler"),
+        }
     }
 
     fn extra_flags(&self) -> &[&str] {
