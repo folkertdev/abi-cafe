@@ -21,7 +21,7 @@ random = true
 # x86's long double is 80 bits stored in 16, and the leftover 6 bytes are
 # indeterminate: each half moves through the x87 stack, so the callee's padding
 # is whatever was in the stack slot. The 10 bytes that mean anything do agree.
-[target."cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))"."complex_long_double"]
+[target."cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))"."complex::long_double"]
 random = true
 
 #

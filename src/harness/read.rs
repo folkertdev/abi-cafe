@@ -194,7 +194,7 @@ fn classify_test(test_file: &Utf8Path, is_runtime: bool) -> Option<(String, Test
     };
     if let Some(ty_name) = file_name.strip_suffix(".variadic.procgen.kdl") {
         Some((
-            format!("variadic::{ty_name}"),
+            format!("variadic::{}", procgen_test_name(ty_name)),
             TestFile::KdlProcgen {
                 path: pathish,
                 ty_name: ty_name.to_owned(),
@@ -203,7 +203,7 @@ fn classify_test(test_file: &Utf8Path, is_runtime: bool) -> Option<(String, Test
         ))
     } else if let Some(ty_name) = file_name.strip_suffix(".procgen.kdl") {
         Some((
-            ty_name.to_owned(),
+            procgen_test_name(ty_name),
             TestFile::KdlProcgen {
                 path: pathish,
                 ty_name: ty_name.to_owned(),
@@ -214,6 +214,17 @@ fn classify_test(test_file: &Utf8Path, is_runtime: bool) -> Option<(String, Test
         Some((test_name.to_owned(), TestFile::Kdl(pathish)))
     } else {
         None
+    }
+}
+
+/// A procgen test is named after the type it tests, but there are enough
+/// complex types to be worth a namespace of their own, so that `--tests complex`
+/// runs all of them (the type is still named `complex_ushort`, only the test
+/// becomes `complex::ushort`).
+fn procgen_test_name(ty_name: &str) -> String {
+    match ty_name.strip_prefix("complex_") {
+        Some(rest) => format!("complex::{rest}"),
+        None => ty_name.to_owned(),
     }
 }
 
