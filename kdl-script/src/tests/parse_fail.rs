@@ -1048,6 +1048,53 @@ fn pun_unfulfilled() {
     res.map_err(miette::Report::new).unwrap();
 }
 
+#[test]
+#[should_panic = "the varargs marker can't have a name"]
+fn named_varargs() {
+    let program = r##"
+        fn "varargs" {
+            inputs {
+                fixed "i32"
+                rest "..."
+            }
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    let res = compiler.compile_string("test.kdl", program.to_owned());
+    res.map_err(miette::Report::new).unwrap();
+}
+
+#[test]
+#[should_panic = "duplicate varargs marker"]
+fn duplicate_varargs() {
+    let program = r##"
+        fn "varargs" {
+            inputs {
+                fixed "i32"
+                _ "..."
+                vararg "u32"
+                _ "..."
+            }
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    let res = compiler.compile_string("test.kdl", program.to_owned());
+    res.map_err(miette::Report::new).unwrap();
+}
+
+#[test]
+#[should_panic = "couldn't parse type"]
+fn varargs_in_struct() {
+    let program = r##"
+        struct "Varargs" {
+            _ "..."
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    let res = compiler.compile_string("test.kdl", program.to_owned());
+    res.map_err(miette::Report::new).unwrap();
+}
+
 /*
 #[test]
 #[should_panic]

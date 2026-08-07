@@ -21,7 +21,38 @@ Currently there is no meaning ascribed to multiple outputs, every backend refuse
 
 Named args [*could* be the equivalent of Swift named args](https://github.com/Gankra/abi-cafe/issues/32), where the inner and outer name can vary, but the outer name is like, part of the function name itself (and/or ABI)?
 
-[Varargs support is also TBD but has a sketch](https://github.com/Gankra/abi-cafe/issues/1#issuecomment-2200345710).
+
+# Varargs
+
+A `_ "..."` input makes the function c-variadic (`printf`-style): everything before the marker is a normal ("fixed") argument, and everything after it is passed as a c-vararg.
+
+```kdl
+fn "my_variadic_func" {
+    inputs {
+        x "u32"
+        _ "..."
+        _ "f64"
+        _ "u64"
+    }
+}
+```
+
+which is the equivalent of this C:
+
+```c
+void my_variadic_func(uint32_t x, ...);
+```
+
+Note that the varargs still have declared types, because *somebody* has to decide what values get passed and read back out — the callee just gets to read them out of a `va_list` instead of receiving them as parameters.
+
+Because of that, varargs come with restrictions that ordinary arguments don't have:
+
+* the function needs at least one fixed argument (C only dropped that requirement in C23, and it's what `va_start` anchors on)
+* the calling convention has to be one that supports varargs (`stdcall` and friends can't, because the callee has no way to know how many arguments to clean up)
+* only "big" scalars can be varargs (`i32`, `u32`, `i64`, `u64`, `i128`, `u128`, `f64`, `ptr`), because C's default argument promotions rewrite anything narrower on the way in, so it could never be read back out as itself (Rust's `VaArgSafe` has the same restriction)
+* `i128`/`u128` varargs only exist on the targets where C has `__int128`, and are still unstable in Rust (`#![feature(c_variadic_int128)]`, which we emit for you)
+
+Backends will report anything that breaks those rules as unsupported.
 
 
 # Outparams

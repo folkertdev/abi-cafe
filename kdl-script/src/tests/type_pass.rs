@@ -197,6 +197,48 @@ fn array_basics() -> Result<(), miette::Report> {
 }
 
 #[test]
+fn varargs_basics() -> Result<(), miette::Report> {
+    let program = r##"
+        fn "varargs" {
+            inputs {
+                fixed0 "i32"
+                fixed1 "f64"
+                _ "..."
+                vararg0 "u64"
+                vararg1 "ptr"
+            }
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    let program = compiler.compile_string("test.kdl", program.to_owned())?;
+
+    let func = program.realize_func(0);
+    assert_eq!(func.varargs, Some(2));
+    assert_eq!(func.fixed_inputs().len(), 2);
+    assert_eq!(func.variadic_inputs().len(), 2);
+    Ok(())
+}
+
+#[test]
+fn varargs_empty() -> Result<(), miette::Report> {
+    let program = r##"
+        fn "varargs" {
+            inputs {
+                _ "..."
+            }
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    let program = compiler.compile_string("test.kdl", program.to_owned())?;
+
+    let func = program.realize_func(0);
+    assert_eq!(func.varargs, Some(0));
+    assert!(func.fixed_inputs().is_empty());
+    assert!(func.variadic_inputs().is_empty());
+    Ok(())
+}
+
+#[test]
 fn ref_basics() -> Result<(), miette::Report> {
     let program = r##"
         fn "arrays" {

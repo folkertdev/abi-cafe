@@ -223,7 +223,9 @@ impl TestHarness {
         separator: &str,
     ) -> String {
         let mut output = String::new();
-        output.push_str(test);
+        // A test name can be namespaced (`variadic::i32`), and when we're
+        // building a file name we want that to use the separator too.
+        output.push_str(&test.replace(TEST_NAMESPACE_SEPARATOR, separator));
         output.push_str(separator);
         output.push_str(&format!("conv_{convention}"));
         output.push_str(separator);

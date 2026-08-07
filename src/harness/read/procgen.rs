@@ -1,6 +1,20 @@
-pub fn procgen_test_for_ty_string(ty_name: &str, ty_def: Option<&str>) -> String {
+/// Which battery of functions a procgen test should generate for its type.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ProcgenMode {
+    /// Everything: values, references, structs, ...
+    Full,
+    /// Only c-variadic calls (which only scalars can participate in)
+    Variadic,
+}
+
+pub fn procgen_test_for_ty_string(
+    ty_name: &str,
+    ty_def: Option<&str>,
+    mode: ProcgenMode,
+) -> String {
     let mut test_body = String::new();
-    procgen_test_for_ty_impl(&mut test_body, ty_name, ty_def).expect("failed to format procgen!?");
+    procgen_test_for_ty_impl(&mut test_body, ty_name, ty_def, mode)
+        .expect("failed to format procgen!?");
     test_body
 }
 
@@ -8,6 +22,7 @@ fn procgen_test_for_ty_impl(
     out: &mut dyn std::fmt::Write,
     ty_name: &str,
     ty_def: Option<&str>,
+    mode: ProcgenMode,
 ) -> std::fmt::Result {
     let ty = ty_name;
     let ty_ref = format!("&{ty_name}");
@@ -22,6 +37,10 @@ fn procgen_test_for_ty_impl(
     } else {
         false
     };
+
+    if let ProcgenMode::Variadic = mode {
+        return add_variadics(out, ty);
+    }
 
     // Start gentle with basic one value in/out tests
     add_func(out, "val_in", &[ty], &[])?;
@@ -128,6 +147,153 @@ fn add_perturbs_struct(
         )?;
     }
     Ok(())
+}
+
+/// The types we mix into a varargs list: a 4-byte int, an 8-byte int, and a
+/// float.
+///
+/// C's default argument promotions mean the `u8`/`f32` used for the fixed
+/// arguments can never appear in a varargs list, so these are the smallest
+/// of each flavour that survives those promotions.
+const VARIADIC_MIXERS: &[&str] = &["u32", "u64", "f64"];
+
+/// Stress out the c-variadic parts of the calling convention.
+///
+/// Varargs are typically passed in a completely different way from the fixed
+/// arguments (often a "register save area" the callee spills to), so this
+/// wiggles both how many varargs there are and how many registers the fixed
+/// arguments burned before them.
+fn add_variadics(out: &mut dyn std::fmt::Write, ty: &str) -> std::fmt::Result {
+    // Lots of vararg counts, to exhaust whatever the varargs get passed in.
+    for len in 1..=16 {
+        let inputs = variadic_list(&[ty], &vec![ty; len]);
+        add_func(out, &format!("variadic_in_{len}"), &inputs, &[])?;
+    }
+
+    // Vary the number of *fixed* args, which is what decides where the
+    // varargs start (leftover registers vs the stack).
+    for len in 2..=8 {
+        let inputs = variadic_list(&vec![ty; len], &mixed_varargs(ty));
+        add_func(out, &format!("variadic_in_{len}_fixed"), &inputs, &[])?;
+    }
+
+    // Now perturb the argument lists to mess with alignment and the int/float
+    // "type classes", which varargs are especially prone to getting wrong
+    // (x64 even passes the number of float varargs in a register!).
+
+    // We do small and big versions to check the cases where everything
+    // should fit in registers vs not.
+    let small_count = 4;
+    let big_count = 16;
+
+    add_variadic_alternating(out, ty, small_count, "small")?;
+    add_variadic_alternating(out, ty, big_count, "big")?;
+    add_variadic_perturbs(out, ty, small_count, "small")?;
+    add_variadic_perturbs(out, ty, big_count, "big")?;
+    add_variadic_fixed_perturbs(out, ty, small_count, "small")?;
+    add_variadic_fixed_perturbs(out, ty, big_count, "big")?;
+    Ok(())
+}
+
+/// Alternate the type with another one all the way down the varargs list.
+///
+/// A list that's all one type only ever lands on one alignment, so this is
+/// where things like "an 8-byte vararg that follows a 4-byte one" actually
+/// get tested. We do both phases so the type is tried at every offset.
+fn add_variadic_alternating(
+    out: &mut dyn std::fmt::Write,
+    ty: &str,
+    count: usize,
+    label: &str,
+) -> std::fmt::Result {
+    for mixer in VARIADIC_MIXERS {
+        // That would just be a list of one type again
+        if *mixer == ty {
+            continue;
+        }
+        for phase in 0..2 {
+            let varargs = (0..count)
+                .map(|idx| if (idx + phase) % 2 == 0 { ty } else { *mixer })
+                .collect::<Vec<_>>();
+
+            let inputs = variadic_list(&[ty], &varargs);
+            add_func(
+                out,
+                &format!("variadic_in_{phase}_alternating_{mixer}_{label}"),
+                &inputs,
+                &[],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Slide a single mixer of each flavour through the varargs, leaving the
+/// fixed args alone.
+fn add_variadic_perturbs(
+    out: &mut dyn std::fmt::Write,
+    ty: &str,
+    count: usize,
+    label: &str,
+) -> std::fmt::Result {
+    for idx in 0..count {
+        let mut varargs = vec![ty; count];
+        for (mixer_idx, mixer) in VARIADIC_MIXERS.iter().enumerate() {
+            // Spread the mixers out evenly, and rotate them all along by idx
+            varargs[(idx + mixer_idx * count / VARIADIC_MIXERS.len()) % count] = *mixer;
+        }
+
+        let inputs = variadic_list(&[ty], &varargs);
+        add_func(
+            out,
+            &format!("variadic_in_{idx}_perturbed_{label}"),
+            &inputs,
+            &[],
+        )?;
+    }
+    Ok(())
+}
+
+/// Perturb the fixed args, which shifts where the varargs land.
+fn add_variadic_fixed_perturbs(
+    out: &mut dyn std::fmt::Write,
+    ty: &str,
+    count: usize,
+    label: &str,
+) -> std::fmt::Result {
+    for idx in 0..count {
+        // Note the extra trailing `ty`: C's `va_start` only has defined
+        // behaviour if the last fixed arg is unaffected by the default
+        // argument promotions, and the perturbs are `u8`/`f32`.
+        let mut fixed = perturb_list(ty, count, idx);
+        fixed.push(ty);
+
+        let inputs = variadic_list(&fixed, &mixed_varargs(ty));
+        add_func(
+            out,
+            &format!("variadic_in_{idx}_fixed_perturbed_{label}"),
+            &inputs,
+            &[],
+        )?;
+    }
+    Ok(())
+}
+
+/// A varargs list with one of everything in it, for the tests that are really
+/// about the fixed arguments but shouldn't pass a uniform list either.
+fn mixed_varargs(ty: &str) -> Vec<&str> {
+    let mut varargs = vec![ty];
+    varargs.extend_from_slice(VARIADIC_MIXERS);
+    varargs
+}
+
+/// Glue a list of fixed args and a list of varargs together with the
+/// `...` marker that makes the function c-variadic.
+fn variadic_list<'a>(fixed: &[&'a str], varargs: &[&'a str]) -> Vec<&'a str> {
+    let mut inputs = fixed.to_vec();
+    inputs.push("...");
+    inputs.extend_from_slice(varargs);
+    inputs
 }
 
 fn perturb_list(ty: &str, count: usize, idx: usize) -> Vec<&str> {

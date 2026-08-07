@@ -1,5 +1,7 @@
 mod procgen;
 
+pub use procgen::ProcgenMode;
+
 use std::{
     fs::File,
     io::{BufReader, Read},
@@ -16,7 +18,13 @@ use crate::*;
 #[derive(Debug, Clone)]
 pub enum TestFile {
     Kdl(Pathish),
-    KdlProcgen(Pathish),
+    /// The file defines the type named `ty_name`, and we procgen the functions
+    /// that stress test it.
+    KdlProcgen {
+        path: Pathish,
+        ty_name: String,
+        mode: ProcgenMode,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -147,10 +155,14 @@ async fn read_test(test: TestId, test_file: TestFile) -> Result<Arc<Test>, Gener
 
 async fn read_test_inner(test: &TestId, test_file: TestFile) -> Result<Arc<Test>, GenerateError> {
     let (test_file, input) = match test_file {
-        TestFile::KdlProcgen(test_file) => {
-            let ty_def = read_file_to_string(&test_file)?;
-            let input = procgen::procgen_test_for_ty_string(test, Some(&ty_def));
-            (test_file, input)
+        TestFile::KdlProcgen {
+            path,
+            ty_name,
+            mode,
+        } => {
+            let ty_def = read_file_to_string(&path)?;
+            let input = procgen::procgen_test_for_ty_string(&ty_name, Some(&ty_def), mode);
+            (path, input)
         }
         TestFile::Kdl(test_file) => {
             let input = read_file_to_string(&test_file)?;
@@ -180,8 +192,24 @@ fn classify_test(test_file: &Utf8Path, is_runtime: bool) -> Option<(String, Test
     } else {
         Pathish::Static(test_file.to_owned())
     };
-    if let Some(test_name) = file_name.strip_suffix(".procgen.kdl") {
-        Some((test_name.to_owned(), TestFile::KdlProcgen(pathish)))
+    if let Some(ty_name) = file_name.strip_suffix(".variadic.procgen.kdl") {
+        Some((
+            format!("variadic::{ty_name}"),
+            TestFile::KdlProcgen {
+                path: pathish,
+                ty_name: ty_name.to_owned(),
+                mode: ProcgenMode::Variadic,
+            },
+        ))
+    } else if let Some(ty_name) = file_name.strip_suffix(".procgen.kdl") {
+        Some((
+            ty_name.to_owned(),
+            TestFile::KdlProcgen {
+                path: pathish,
+                ty_name: ty_name.to_owned(),
+                mode: ProcgenMode::Full,
+            },
+        ))
     } else if let Some(test_name) = file_name.strip_suffix(".kdl") {
         Some((test_name.to_owned(), TestFile::Kdl(pathish)))
     } else {

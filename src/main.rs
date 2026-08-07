@@ -126,7 +126,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // The cruel bastard that is combinatorics... THE GOD LOOPS
     for test in harness.all_tests() {
-        if !cfg.run_tests.is_empty() && !cfg.run_tests.contains(&test.name) {
+        if !cfg.run_tests.is_empty()
+            && !cfg
+                .run_tests
+                .iter()
+                .any(|pattern| test_name_matches(pattern, &test.name))
+        {
             continue;
         }
         for &convention in &cfg.run_conventions {

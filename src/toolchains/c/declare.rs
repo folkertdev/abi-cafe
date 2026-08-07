@@ -564,8 +564,8 @@ impl CcToolchain {
         let convention_decl = self.convention_decl(state.options.convention)?;
         write!(f, "{pre}{}{}{post}(", convention_decl, function.name)?;
         let mut multiarg = false;
-        // Add inputs
-        for arg in &function.inputs {
+        // Add inputs (the varargs don't appear in the signature at all)
+        for arg in function.fixed_inputs() {
             if multiarg {
                 write!(f, ", ")?;
             }
@@ -573,6 +573,10 @@ impl CcToolchain {
             let arg_name = &arg.name;
             let (pre, post) = &state.tynames[&arg.ty];
             write!(f, "{pre}{}{post}", arg_name)?;
+        }
+        if function.is_variadic() {
+            check_variadic(&state.types, &state.env, state.options.convention, function)?;
+            write!(f, ", ...")?;
         }
         write!(f, ")")?;
         Ok(())

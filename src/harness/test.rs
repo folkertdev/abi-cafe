@@ -10,6 +10,20 @@ use crate::{error::GenerateError, CliParseError};
 pub type ToolchainId = String;
 pub type TestId = String;
 
+/// Test names can be namespaced, like `variadic::i32`.
+pub const TEST_NAMESPACE_SEPARATOR: &str = "::";
+
+/// Does this test name pattern select this test?
+///
+/// A namespace selects everything under it, so `variadic` selects
+/// `variadic::i32`, both for `--tests` and in the rules file.
+pub fn test_name_matches(pattern: &str, name: &str) -> bool {
+    let Some(rest) = name.strip_prefix(pattern) else {
+        return false;
+    };
+    rest.is_empty() || rest.starts_with(TEST_NAMESPACE_SEPARATOR)
+}
+
 /// A test case, fully abstract.
 ///
 /// An abi-cafe Test is essentially a series of function signatures
@@ -235,8 +249,16 @@ impl std::fmt::Display for WriteImpl {
 }
 
 impl Test {
-    pub fn has_convention(&self, _convention: CallingConvention) -> bool {
-        true
+    pub fn has_convention(&self, convention: CallingConvention) -> bool {
+        if convention.supports_c_variadic() {
+            return true;
+        }
+        // Don't bother generating a test that every backend will refuse
+        // to implement (rather than reporting it as skipped over and over).
+        !self
+            .types
+            .all_funcs()
+            .any(|func| self.types.realize_func(func).is_variadic())
     }
 
     pub async fn with_vals(
@@ -309,6 +331,25 @@ pub enum CallingConvention {
 }
 
 impl CallingConvention {
+    /// Can functions with this convention be c-variadic?
+    ///
+    /// The conventions that clean up the arguments in the callee can't be,
+    /// because the callee doesn't know how many arguments there are.
+    pub fn supports_c_variadic(&self) -> bool {
+        match self {
+            CallingConvention::C
+            | CallingConvention::Cdecl
+            | CallingConvention::System
+            | CallingConvention::Win64
+            | CallingConvention::Sysv64
+            | CallingConvention::Aapcs => true,
+            CallingConvention::Rust
+            | CallingConvention::Stdcall
+            | CallingConvention::Fastcall
+            | CallingConvention::Vectorcall => false,
+        }
+    }
+
     pub fn name(&self) -> &'static str {
         match self {
             CallingConvention::C => "c",

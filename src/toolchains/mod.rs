@@ -6,6 +6,7 @@ use crate::harness::test::*;
 use crate::{error::*, SortedMap};
 
 use camino::{Utf8Path, Utf8PathBuf};
+use kdl_script::types::{Func, PrimitiveTy, Ty, TyIdx, TypedProgram};
 use kdl_script::PunEnv;
 
 pub mod c;
@@ -28,6 +29,84 @@ const C_TOOLCHAINS: &[&str] = &[
     TOOLCHAIN_MSVC,
     TOOLCHAIN_ZIGCC,
 ];
+
+/// The c-variadic restrictions that every language agrees on.
+///
+/// Backends should call this before generating a c-variadic function, and
+/// may of course have restrictions of their own on top of these.
+pub fn check_variadic(
+    types: &TypedProgram,
+    env: &PunEnv,
+    convention: CallingConvention,
+    function: &Func,
+) -> Result<(), GenerateError> {
+    if !convention.supports_c_variadic() {
+        Err(UnsupportedError::Other(format!(
+            "the {convention} convention can't be c-variadic"
+        )))?;
+    }
+    // C only allows this in C23, and it's not worth the trouble of detecting
+    // that; every backend also needs a fixed arg to anchor `va_start` on.
+    if function.fixed_inputs().is_empty() {
+        Err(UnsupportedError::Other(
+            "a c-variadic function needs at least one fixed argument".to_owned(),
+        ))?;
+    }
+    for arg in function.variadic_inputs() {
+        if variadic_arg_prim(types, env, arg.ty).is_none() {
+            Err(UnsupportedError::Other(format!(
+                "{} can't be passed as a c-vararg",
+                types.format_ty(arg.ty)
+            )))?;
+        }
+    }
+    Ok(())
+}
+
+/// The primitive a c-vararg of this type is passed as, if it can be one at all.
+///
+/// C's default argument promotions rewrite anything narrower than an `int`
+/// or a `double` on the way in, so those types can never be read back out of
+/// a `va_list` as themselves. Everything wider is fair game, but so far only
+/// scalars are implemented (rust's `VaArgSafe` has the same restriction).
+pub fn variadic_arg_prim(types: &TypedProgram, env: &PunEnv, ty: TyIdx) -> Option<PrimitiveTy> {
+    match types.realize_ty(ty) {
+        Ty::Primitive(prim) => match prim {
+            PrimitiveTy::I32
+            | PrimitiveTy::I64
+            | PrimitiveTy::I128
+            | PrimitiveTy::U32
+            | PrimitiveTy::U64
+            | PrimitiveTy::U128
+            | PrimitiveTy::F64
+            | PrimitiveTy::Ptr => Some(*prim),
+            // Promoted to int/uint/double, so they arrive as another type
+            PrimitiveTy::I8
+            | PrimitiveTy::I16
+            | PrimitiveTy::U8
+            | PrimitiveTy::U16
+            | PrimitiveTy::F16
+            | PrimitiveTy::F32
+            | PrimitiveTy::Bool => None,
+            // Not scalars either language can read back out
+            PrimitiveTy::I256 | PrimitiveTy::U256 | PrimitiveTy::F128 | PrimitiveTy::Complex(_) => {
+                None
+            }
+        },
+        Ty::Alias(alias_ty) => variadic_arg_prim(types, env, alias_ty.real),
+        Ty::Pun(pun) => {
+            let real_ty = types.resolve_pun(pun, env).unwrap();
+            variadic_arg_prim(types, env, real_ty)
+        }
+        Ty::Struct(_)
+        | Ty::Union(_)
+        | Ty::Enum(_)
+        | Ty::Tagged(_)
+        | Ty::Array(_)
+        | Ty::Ref(_)
+        | Ty::Empty => None,
+    }
+}
 
 /// A compiler/language toolchain!
 pub trait Toolchain {

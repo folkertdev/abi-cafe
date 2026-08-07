@@ -263,7 +263,7 @@ impl TestKeyPattern {
         } = self;
 
         if let Some(test) = test {
-            if test != &key.test {
+            if !test_name_matches(test, &key.test) {
                 return false;
             }
         }
@@ -323,10 +323,17 @@ impl std::str::FromStr for TestKeyPattern {
             },
         };
 
-        let [test, rest @ ..] = &parts[..] else {
-            return Ok(key);
-        };
-        key.test = (!test.is_empty()).then(|| test.to_string());
+        // The test name comes first and can itself be namespaced with the
+        // separator (`variadic::i32`), so take parts until one of them looks
+        // like an option. An empty name means "any test".
+        let name_len = parts
+            .iter()
+            .position(|part| part.is_empty() || is_option_part(part))
+            .unwrap_or(parts.len())
+            .max(1);
+        let (name_parts, rest) = parts.split_at(name_len);
+        let test = name_parts.join(separator);
+        key.test = (!test.is_empty()).then_some(test);
 
         for part in rest {
             // pairs
@@ -369,6 +376,22 @@ impl std::str::FromStr for TestKeyPattern {
         }
         Ok(key)
     }
+}
+
+/// Is this `::`-separated part of a test key an option, and not part of the
+/// test's (possibly namespaced) name?
+///
+/// Anything *shaped* like an option counts, so that a typo'd one is still an
+/// error instead of silently becoming part of the name. Keep this in sync
+/// with the parts [`TestKeyPattern::from_str`][] knows about.
+fn is_option_part(part: &str) -> bool {
+    part.contains("_calls_")
+        || part.ends_with("_caller")
+        || part.ends_with("_callee")
+        || part.ends_with("_toolchain")
+        || part.starts_with("repr_")
+        || part.starts_with("conv_")
+        || part.parse::<ValueGeneratorKind>().is_ok()
 }
 impl std::fmt::Display for TestKeyPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

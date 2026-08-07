@@ -128,8 +128,8 @@ It might also be reasonable to introduce a concept to kdl-script that `Option::S
 
 ### Coming Soon™
 
-* varargs
-    * sketch: have a "..." input arg signal all the subsequent args should be passed as varargs
+* more varargs
+    * the "..." input arg is implemented, but only for the scalars that survive C's default argument promotions (which is also all rust's `VaArgSafe` allows)
     * did i hallucinate that swift supports multiple varargs lists? i think it makes sense with named args?
 * simd types
     * sketch: as primitives? or treated like structural types like arrays? (`[u32 x 5]`?)

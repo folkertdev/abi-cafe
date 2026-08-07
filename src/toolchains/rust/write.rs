@@ -42,6 +42,14 @@ impl RustcToolchain {
         if has_complex {
             writeln!(f, "#![feature(complex_numbers)]")?;
         }
+        let has_variadic_int128 = state.desired_funcs.iter().any(|&func| {
+            let function = state.types.realize_func(func);
+            self.has_variadic_int128(state, function)
+        });
+        if has_variadic_int128 {
+            writeln!(f, "#![feature(c_variadic_int128)]")?;
+        }
+        writeln!(f, "#![feature(c_variadic_experimental_arch)]")?;
         // Load test harness "headers"
         writeln!(
             f,

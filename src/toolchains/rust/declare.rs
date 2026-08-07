@@ -13,7 +13,7 @@ impl RustcToolchain {
         writeln!(f, "extern \"{convention_decl}\" {{",)?;
         f.add_indent(1);
         for &func in &state.desired_funcs {
-            self.generate_signature(f, state, func)?;
+            self.generate_signature(f, state, func, CallSide::Caller)?;
             writeln!(f, ";")?;
         }
         f.sub_indent(1);
@@ -443,14 +443,15 @@ impl RustcToolchain {
         f: &mut Fivemat,
         state: &TestState,
         func: FuncIdx,
+        call_side: CallSide,
     ) -> Result<(), GenerateError> {
         let function = state.types.realize_func(func);
         self.check_returns(state, function)?;
 
         write!(f, "fn {}(", function.name)?;
         let mut multiarg = false;
-        // Add inputs
-        for arg in &function.inputs {
+        // Add inputs (the varargs are hidden behind the `...`)
+        for arg in function.fixed_inputs() {
             if multiarg {
                 write!(f, ", ")?;
             }
@@ -458,6 +459,18 @@ impl RustcToolchain {
             let arg_name = &arg.name;
             let arg_ty = &state.tynames[&arg.ty];
             write!(f, "{}: {}", arg_name, arg_ty)?;
+        }
+        if function.is_variadic() {
+            self.check_variadic(state, function)?;
+            if multiarg {
+                write!(f, ", ")?;
+            }
+            // The caller just declares that there are varargs, the callee
+            // needs to bind the va_list to read them back out.
+            match call_side {
+                CallSide::Caller => write!(f, "...")?,
+                CallSide::Callee => write!(f, "mut {VARARGS}: ...")?,
+            }
         }
         // Add normal returns
         if let Some(arg) = function.outputs.first() {

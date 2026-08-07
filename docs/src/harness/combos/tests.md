@@ -9,9 +9,23 @@ Each function in the test is regarded as a "subtest" that can be individually pa
 
 The default suite of tests can be [found in `/include/tests/`](https://github.com/Gankra/abi-cafe/tree/main/include/tests), which is statically embedded in abi-cafe's binary. You don't need to register the test anywhere, we will just try to parse every file in the tests directory.
 
-There are two kinds of tests: `.kdl` ("[normal](https://github.com/Gankra/abi-cafe/tree/main/include/tests/normal)") and `.procgen.kdl` ("[procgen](https://github.com/Gankra/abi-cafe/tree/main/include/tests/procgen)").
+There are three kinds of tests: `.kdl` ("[normal](https://github.com/Gankra/abi-cafe/tree/main/include/tests/normal)"), `.procgen.kdl` ("[procgen](https://github.com/Gankra/abi-cafe/tree/main/include/tests/procgen)"), and `.variadic.procgen.kdl` ("[variadic procgen](https://github.com/Gankra/abi-cafe/tree/main/include/tests/procgen/variadic)").
 
 Procgen tests are sugar for normal tests, where you just define a type with the same name of the file (so `MetersU32.procgen.kdl` is expected to define a type named `MetersU32`), and we generate a battery of types/functions that stress test that the ABI handles that type properly.
+
+Variadic procgen tests work the same way, but generate a battery of [c-variadic](../../kdl-script/functions/signatures.md#varargs) functions instead, so `i32.variadic.procgen.kdl` becomes a test named `variadic::i32`. Only [the scalars that can be varargs](../../kdl-script/functions/signatures.md#varargs) are worth writing one of these for.
+
+
+## Test Namespaces
+
+A test's name can be namespaced with `::`, like `variadic::i32`. Naming a namespace selects everything in it, both for `--tests` and in the rules file, so `--tests variadic` runs every variadic test and
+
+```toml
+[target.'*']
+'variadic'.run = "skip"
+```
+
+skips all of them. (This is a prefix match on `::` boundaries, not a substring match: `--tests i32` will not select `variadic::i32`.)
 
 **We recommend preferring procgen tests, because they're simpler to write and will probably have better coverage than if you tried to manually define all the functions.**
 
@@ -81,7 +95,7 @@ A test rule's `<test-key>` is the same `::`-separated value that abi-cafe will u
 
 A test-key can include the following parts:
 
-* `<test>`: the name of the test (`CLikeTagged`, this is the only purely positional part of a key, it must come first. You can omit it by starting a key with `::`) 
+* `<test>`: the name of the test (`CLikeTagged`, this is the only purely positional part of a key, it must come first. You can omit it by starting a key with `::`). A [namespaced](#test-namespaces) name like `variadic::i32` is still just this one part, and naming a prefix of it selects the whole namespace
 * `<convention>`: the [calling convention](./conventions.md) (`conv_c`)
 * `<repr>`: the [repr of aggregates](./reprs.md) (`repr_c`)
 * `<generator>`: the [value generator](./values.md) (`graffiti`)
@@ -122,7 +136,7 @@ The following CLI flags are notable for changing what tests/rules to use:
 
 ### `--tests`
 
-By default we will run all known tests. Passing the names of tests (the filename without the extension(s)) to `--tests` will instead make us run only those tests (unlike the cargo test harness this isn't a fuzzy/substring match (but it could be if someone wants to implement that)).
+By default we will run all known tests. Passing the names of tests (the filename without the extension(s)) to `--tests` will instead make us run only those tests. Unlike the cargo test harness this isn't a fuzzy/substring match — the only thing that isn't an exact match is naming a [namespace](#test-namespaces), which selects everything in it (`--tests variadic` runs `variadic::i32`, `variadic::f64`, ...).
 
 See [the top-level combo docs for other flags that change the set of tests we combinatorically generate](../combos.md).
 
