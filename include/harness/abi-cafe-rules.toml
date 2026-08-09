@@ -23,6 +23,8 @@ random = true
 # is whatever was in the stack slot. The 10 bytes that mean anything do agree.
 [target."cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))"."complex::long_double"]
 random = true
+[target."cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))"."variadic::complex::long_double"]
+random = true
 
 #
 #

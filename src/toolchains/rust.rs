@@ -424,6 +424,26 @@ impl RustcToolchain {
                 "rust doesn't implement 128-bit c-varargs on this target".to_owned(),
             ))?;
         }
+        if self.has_variadic_f128(state, function) && !self.variadic_f128_supported() {
+            Err(UnsupportedError::Other(
+                "rust doesn't implement f128 c-varargs on this target".to_owned(),
+            ))?;
+        }
+        if self.has_variadic_complex(state, function) {
+            Err(UnsupportedError::Other(
+                "rust doesn't implement complex c-varargs".to_owned(),
+            ))?;
+        }
+        // `VaArgSafe` is only implemented for scalars, so anything C can send
+        // through `...` that isn't one (an aggregate, say) is out of reach.
+        for arg in function.variadic_inputs() {
+            if variadic_arg_prim(&state.types, &state.env, arg.ty).is_none() {
+                Err(UnsupportedError::Other(format!(
+                    "rust can't read a {} out of a va_list",
+                    state.types.format_ty(arg.ty)
+                )))?;
+            }
+        }
         Ok(())
     }
 
@@ -467,6 +487,40 @@ impl RustcToolchain {
             | Arch::Wasm64 => is_64bit,
             _ => false,
         }
+    }
+
+    /// Does this function pass an `f128` as a c-vararg?
+    fn has_variadic_f128(&self, state: &TestState, function: &Func) -> bool {
+        function.variadic_inputs().iter().any(|arg| {
+            matches!(
+                variadic_arg_prim(&state.types, &state.env, arg.ty),
+                Some(PrimitiveTy::F128)
+            )
+        })
+    }
+
+    /// Does this function pass a complex number as a c-vararg?
+    ///
+    /// C is happy to do this, but `core::num::Complex` has no `VaArgSafe` impl
+    /// on any target, so these tests are C-only.
+    fn has_variadic_complex(&self, state: &TestState, function: &Func) -> bool {
+        function.variadic_inputs().iter().any(|arg| {
+            matches!(
+                variadic_arg_prim(&state.types, &state.env, arg.ty),
+                Some(PrimitiveTy::Complex(_))
+            )
+        })
+    }
+
+    /// Are `f128` c-varargs implemented for this target?
+    ///
+    /// The `VaArgSafe` impl in core is `cfg(target_has_reliable_f128)`, so ask
+    /// rustc about that cfg directly.
+    fn variadic_f128_supported(&self) -> bool {
+        self.platform_info.cfgs.contains(
+            &cargo_platform::Cfg::from_str("target_has_reliable_f128")
+                .expect("failed to parse f128 cfg"),
+        )
     }
 
     fn check_returns(&self, state: &TestState, function: &Func) -> Result<(), GenerateError> {

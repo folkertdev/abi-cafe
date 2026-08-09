@@ -53,7 +53,7 @@ pub fn check_variadic(
         ))?;
     }
     for arg in function.variadic_inputs() {
-        if variadic_arg_prim(types, env, arg.ty).is_none() {
+        if !can_be_variadic_arg(types, env, arg.ty) {
             Err(UnsupportedError::Other(format!(
                 "{} can't be passed as a c-vararg",
                 types.format_ty(arg.ty)
@@ -61,6 +61,27 @@ pub fn check_variadic(
         }
     }
     Ok(())
+}
+
+/// Can a value of this type be passed as a c-vararg at all?
+///
+/// Scalars have to survive the default argument promotions (see
+/// [`variadic_arg_prim`]), but an aggregate is passed the same way named or
+/// not, so C is happy to send one through `...`. Rust is not: `VaArgSafe` is
+/// only implemented for scalars, so the rust backend rejects those on top.
+pub fn can_be_variadic_arg(types: &TypedProgram, env: &PunEnv, ty: TyIdx) -> bool {
+    match types.realize_ty(ty) {
+        Ty::Primitive(_) => variadic_arg_prim(types, env, ty).is_some(),
+        Ty::Struct(_) | Ty::Union(_) => true,
+        Ty::Alias(alias_ty) => can_be_variadic_arg(types, env, alias_ty.real),
+        Ty::Pun(pun) => {
+            let real_ty = types.resolve_pun(pun, env).unwrap();
+            can_be_variadic_arg(types, env, real_ty)
+        }
+        // An enum is fine in C but has no rust equivalent to read back; the
+        // rest can't be passed by value in C in the first place.
+        Ty::Enum(_) | Ty::Tagged(_) | Ty::Array(_) | Ty::Ref(_) | Ty::Empty => false,
+    }
 }
 
 /// The primitive a c-vararg of this type is passed as, if it can be one at all.
@@ -79,7 +100,12 @@ pub fn variadic_arg_prim(types: &TypedProgram, env: &PunEnv, ty: TyIdx) -> Optio
             | PrimitiveTy::U64
             | PrimitiveTy::U128
             | PrimitiveTy::F64
-            | PrimitiveTy::Ptr => Some(*prim),
+            | PrimitiveTy::F128
+            | PrimitiveTy::Ptr
+            // The default argument promotions are defined in terms of `float`
+            // and the narrow integers, so no complex type is promoted, not even
+            // `_Complex float`.
+            | PrimitiveTy::Complex(_) => Some(*prim),
             // Promoted to int/uint/double, so they arrive as another type
             PrimitiveTy::I8
             | PrimitiveTy::I16
@@ -89,9 +115,7 @@ pub fn variadic_arg_prim(types: &TypedProgram, env: &PunEnv, ty: TyIdx) -> Optio
             | PrimitiveTy::F32
             | PrimitiveTy::Bool => None,
             // Not scalars either language can read back out
-            PrimitiveTy::I256 | PrimitiveTy::U256 | PrimitiveTy::F128 | PrimitiveTy::Complex(_) => {
-                None
-            }
+            PrimitiveTy::I256 | PrimitiveTy::U256 => None,
         },
         Ty::Alias(alias_ty) => variadic_arg_prim(types, env, alias_ty.real),
         Ty::Pun(pun) => {
