@@ -1,0 +1,15 @@
+// A struct of two floats, which sparc64 passes in FP registers -- but only
+// when the argument is *named*.
+//
+// gcc gates that on `named` in two places in function_arg_slotno: a
+// MODE_COMPLEX_FLOAT falls through to the integer case when unnamed, and the
+// RECORD_TYPE classification that picks FP registers is guarded the same way.
+// A backend that classifies varargs like named arguments passes this in %f
+// registers while the callee reads the integer slots.
+//
+// The `variadic::complex::float` test is the same bug down the other path.
+
+struct "TwoF32s" {
+    a "f32"
+    b "f32"
+}

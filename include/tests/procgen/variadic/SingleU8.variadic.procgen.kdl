@@ -1,0 +1,7 @@
+// A one-byte struct, which is *not* subject to the default argument
+// promotions the way a bare `u8` is: an aggregate goes through `...`
+// unchanged, so this lands in a slot much smaller than a word.
+
+struct "SingleU8" {
+    a "u8"
+}

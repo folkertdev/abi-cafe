@@ -1,0 +1,11 @@
+// A 9-byte struct with an alignment of 1.
+//
+// An odd size that's just over a register is the interesting case: it can't be
+// loaded as a single word, and it straddles the boundary when the register
+// budget runs out mid-struct.
+
+@packed
+struct "PackedU8U64" {
+    a "u8"
+    b "u64"
+}

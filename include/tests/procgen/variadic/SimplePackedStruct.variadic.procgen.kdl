@@ -1,0 +1,13 @@
+// The same fields as SimplePaddedStruct, but with all the padding removed.
+//
+// Packing drops both the size and the alignment (to 1), so this lands in
+// argument slots very differently from the padded version.
+
+@packed
+struct "SimplePackedStruct" {
+    _ "u8"
+    _ "f32"
+    _ "i16"
+    _ "bool"
+    _ "i64"
+}
