@@ -376,7 +376,16 @@ impl CcToolchain {
     /// Tell clang (and zig cc, which is clang in disguise) what we're building for.
     /// gcc gets that from its own triple, so it has no equivalent.
     fn clang_target_flag(&self) -> String {
-        format!("--target={}", self.platform.target_triple)
+        let rust_triple = self.platform.target_triple;
+        let clang_triple = match self.platform.target_arch {
+            arch @ (Arch::Riscv32 | Arch::Riscv64) => {
+                // Turn `riscv64gc-*` into `riscv64-*` etc.
+                let (_, rest) = rust_triple.split_once('-').unwrap();
+                format!("{arch}-{rest}")
+            }
+            _ => rust_triple.to_owned(),
+        };
+        format!("--target={clang_triple}")
     }
 
     fn extra_flags(&self) -> &[&str] {
