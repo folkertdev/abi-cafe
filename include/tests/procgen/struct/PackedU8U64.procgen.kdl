@@ -1,0 +1,9 @@
+// A 9-byte struct with an alignment of 1.
+//
+// Doesn't quite fit in a register, and the u64 is misaligned.
+
+@packed
+struct "PackedU8U64" {
+    a "u8"
+    b "u64"
+}

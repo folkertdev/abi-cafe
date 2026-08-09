@@ -449,9 +449,8 @@ impl CcToolchain {
                     inner_attrs.push(format!("__attribute__((aligned({})))", align.val));
                 }
                 Attr::Packed(AttrPacked {}) => {
-                    return Err(UnsupportedError::Other(
-                        "@packed not implemented".to_owned(),
-                    ))?;
+                    // Ignored on a typedef, must be on the struct.
+                    inner_attrs.push("__attribute__((packed))".to_owned());
                 }
                 Attr::Passthrough(AttrPassthrough(attr)) => {
                     other_attrs.push(attr);
