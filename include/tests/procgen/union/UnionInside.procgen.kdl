@@ -1,0 +1,11 @@
+// Check how a union field affects adjacent fields. 
+
+union "InnerUnion" {
+    _ "f32"
+    _ "i32"
+}
+
+struct "UnionInside" {
+    u "InnerUnion"
+    g "f32"
+}
