@@ -28,7 +28,52 @@ ABI Cafe is purely *descriptive*. It has no preconceived notion of what *should*
 
 This design is based on a fundamental belief that **ABIs exist only through sheer force of will**. The spec if often "read GCC's source code", and damn if that ain't an error-prone process. Also GCC doesn't even know you exist, and you're only going to keep interoperating with them if you check and maintain your work. So here's a tool for checking and maintaining your work!
 
+## Cross-compilation
 
+This fork has support for cross-compilation. For instance to compare `clang` and `gcc` for a custom target:
+
+```sh
+QEMU_LD_PREFIX=/usr/i686-linux-gnu \
+cargo run --release -- \
+    --target i686-unknown-linux-gnu \
+    --linker i686-linux-gnu-gcc \
+    --add-cc-toolchain gcc:distro-gcc:/usr/bin/i686-linux-gnu-gcc \
+    --conventions c --reprs c \
+    -l clang,distro-gcc \
+    -p clang_calls_distro-gcc,distro-gcc_calls_clang
+```
+
+Or compare `rustc` and `clang`:
+
+```sh
+QEMU_LD_PREFIX=/usr/riscv64-linux-gnu \
+cargo run --release -- \
+    --target riscv64gc-unknown-linux-gnu \
+    --linker riscv64-linux-gnu-gcc \
+    --conventions c --reprs c \
+    -l rustc,clang-nightly \
+    -p rustc_calls_clang,clang_calls_rustc
+```
+
+When rust is involved, a `std` for the target is required, e.g. using `rustup target add riscv64gc-unknown-linux-gnu`.
+
+Finally, for development and for tier 3 targets, we can compare a custom `rustc` with a custom `clang`:
+
+```sh
+cargo build --release
+
+RUSTUP_TOOLCHAIN=stage1 \
+QEMU_LD_PREFIX=/usr/mips-linux-gnu \
+./target/release/abi-cafe \
+    --target mips-unknown-linux-gnu \
+    --linker mips-linux-gnu-gcc \
+    --add-cc-toolchain clang:clang-nightly:/path/to/llvm-project/build/bin/clang \
+    --conventions c --reprs c \
+    -l rustc,clang-nightly \
+    -p rustc_calls_clang-nightly,clang-nightly_calls_rustc
+```
+
+Here the `std` has to be in that toolchain's sysroot, e.g. using `./x build library --target mips-unknown-linux-gnu`.
 
 ## Choose Your Own Adventure
 
