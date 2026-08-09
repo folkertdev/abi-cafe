@@ -1,0 +1,11 @@
+// The loongarch64 case from https://github.com/rust-lang/rust/issues/115609.
+
+@align 8
+struct "Aligned8Int" {
+    a "i32"
+}
+
+struct "AlignedI32F32" {
+    x "Aligned8Int"
+    f "f32"
+}
