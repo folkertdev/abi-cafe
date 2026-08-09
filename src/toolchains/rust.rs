@@ -61,6 +61,8 @@ pub struct RustcToolchain {
     platform: Platform,
     /// What codegen backend are we using?
     codegen_backend: Option<String>,
+    /// What linker should rustc use, if not its default?
+    linker: Option<Utf8PathBuf>,
     /// Enable debuginfo
     debug: bool,
 }
@@ -95,7 +97,7 @@ impl Toolchain for RustcToolchain {
             .arg("--out-dir")
             .arg(out_dir)
             .arg("--target")
-            .arg(&self.platform_info.target)
+            .arg(self.platform_info.target.target_triple)
             .arg(format!("-Cmetadata={lib_name}"))
             .arg(src_path);
         if self.debug {
@@ -122,6 +124,49 @@ impl Toolchain for RustcToolchain {
     ) -> Result<String, BuildError> {
         // Currently no need to be different
         self.compile_callee(src_path, out_dir, lib_name)
+    }
+
+    fn link_bin(
+        &self,
+        main_src: &Utf8Path,
+        out_dir: &Utf8Path,
+        build: &BuildOutput,
+        bin_name: &str,
+    ) -> Result<LinkOutput, LinkError> {
+        let output = out_dir.join(bin_name);
+        let mut cmd = Command::new(&self.command);
+        cmd.arg("-v")
+            .arg("-L")
+            .arg(out_dir)
+            .arg("-l")
+            .arg(&build.caller_lib)
+            .arg("-l")
+            .arg(&build.callee_lib)
+            .arg("--crate-type")
+            .arg("bin")
+            .arg("--target")
+            .arg(self.platform_info.target.target_triple)
+            // .arg("-Csave-temps=y")
+            // .arg("--out-dir")
+            // .arg("target/temp/")
+            .arg("-o")
+            .arg(&output)
+            .arg(main_src);
+        if let Some(linker) = &self.linker {
+            cmd.arg(format!("-Clinker={linker}"));
+        }
+        if self.debug {
+            cmd.arg("-g");
+        }
+
+        debug!("running: {:?}", cmd);
+        let out = cmd.output()?;
+
+        if !out.status.success() {
+            Err(LinkError::RustLink(out))
+        } else {
+            Ok(LinkOutput { test_bin: output })
+        }
     }
 
     fn generate_callee(&self, f: &mut dyn Write, test: TestImpl) -> Result<(), GenerateError> {
@@ -303,23 +348,32 @@ impl RustcToolchain {
             if let Some(val) = line.strip_prefix("host: ") {
                 host = Some(val.to_owned());
             }
-            if let Some(line) = line.strip_prefix("rustc ") {
-                if let Some((val, _rest)) = line.split_once(' ') {
-                    version = Some(val.to_owned())
-                }
+            if let Some(val) = line.strip_prefix("release: ") {
+                version = Some(val.to_owned());
             }
         }
         let version = version.expect("failed to get rustc version");
-        let host = host.expect("failed to get rustc host triple");
-        let is_nightly = version.contains("nightly");
+        let is_nightly = version.contains("nightly") || version.contains("dev");
 
-        // Get rustc's cfgs for the platform we're interested in
-        // (Yes we don't have to pass `--target` because host but showing how we can get *any*)
+        let host = host.expect("failed to get rustc host triple");
+        let host = platforms::Platform::find(&host).expect("invalid target triple");
+
+        let target = system_info.target.unwrap_or(host);
+
+        // Get rustc's cfgs for target platform.
         let rustc_cfgs = Command::new(command)
             .arg("--print=cfg")
-            .arg(format!("--target={host}"))
+            .arg(format!("--target={}", target.target_triple))
             .output()
             .expect("rustc failed to run");
+
+        if !rustc_cfgs.status.success() {
+            let stderr = String::from_utf8_lossy(&rustc_cfgs.stderr);
+            unreachable!(
+                "error looking up --target={}:\n{stderr}",
+                target.target_triple
+            );
+        }
         let rustc_cfgs_stdout = String::from_utf8(rustc_cfgs.stdout).unwrap();
         let cfgs = rustc_cfgs_stdout
             .lines()
@@ -339,9 +393,10 @@ impl RustcToolchain {
             command: command.to_owned(),
             version,
             is_nightly,
-            platform_info: PlatformInfo { target: host, cfgs },
+            platform_info: PlatformInfo { target, host, cfgs },
             platform,
             codegen_backend,
+            linker: system_info.linker.clone(),
             debug: system_info.debug,
         }
     }

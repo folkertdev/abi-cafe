@@ -1,0 +1,9 @@
+// A packed struct whose fields all happen to still be naturally aligned.
+//
+// On Sparc64 this should be handled differently, see https://github.com/llvm/llvm-project/issues/39500.
+
+@packed
+struct "PackedF32I32" {
+    f "f32"
+    i "i32"
+}

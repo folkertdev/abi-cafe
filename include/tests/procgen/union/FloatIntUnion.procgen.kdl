@@ -1,0 +1,6 @@
+// A union whose widest member is a float. Check whether this is passed in FPRs or GPRs
+
+union "FloatIntUnion" {
+    _ "f32"
+    _ "i32"
+}

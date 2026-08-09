@@ -1,0 +1,12 @@
+// Check how a packed field interacts with other fields. 
+
+@packed
+struct "PackedInner" {
+    f "f32"
+    i "i32"
+}
+
+struct "PackedStructInside" {
+    inner "PackedInner"
+    g "f32"
+}

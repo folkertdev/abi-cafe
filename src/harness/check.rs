@@ -2,6 +2,7 @@ use console::Style;
 use harness::run::{FuncBuffer, ValBuffer};
 use kdl_script::types::PrimitiveTy;
 use kdl_script::types::Ty;
+use platforms::Endian;
 use tracing::{error, info};
 
 use crate::error::*;
@@ -136,8 +137,8 @@ impl TestHarness {
         // time we're here to print <other variant> and shrug.
         if let Ty::Tagged(tagged_ty) = types.realize_ty(expected_val.ty) {
             let expected_tag = expected_val.generate_idx(tagged_ty.variants.len());
-            let caller_tag = load_tag(caller_val);
-            let callee_tag = load_tag(callee_val);
+            let caller_tag = self.load_tag(caller_val);
+            let callee_tag = self.load_tag(callee_val);
 
             if caller_tag != Some(expected_tag) || callee_tag != Some(expected_tag) {
                 let expected = tagged_variant_name(tagged_ty, Some(expected_tag));
@@ -147,8 +148,8 @@ impl TestHarness {
             }
         } else if let Ty::Enum(enum_ty) = types.realize_ty(expected_val.ty) {
             let expected_tag = expected_val.generate_idx(enum_ty.variants.len());
-            let caller_tag = load_tag(caller_val);
-            let callee_tag = load_tag(callee_val);
+            let caller_tag = self.load_tag(caller_val);
+            let callee_tag = self.load_tag(callee_val);
 
             if caller_tag != Some(expected_tag) || callee_tag != Some(expected_tag) {
                 let expected = enum_variant_name(enum_ty, Some(expected_tag));
@@ -158,8 +159,8 @@ impl TestHarness {
             }
         } else if let Ty::Primitive(PrimitiveTy::Bool) = types.realize_ty(expected_val.ty) {
             let expected_tag = expected_val.generate_idx(2);
-            let caller_tag = load_tag(caller_val);
-            let callee_tag = load_tag(callee_val);
+            let caller_tag = self.load_tag(caller_val);
+            let callee_tag = self.load_tag(callee_val);
 
             if caller_tag != Some(expected_tag) || callee_tag != Some(expected_tag) {
                 let expected = bool_variant_name(expected_tag, Some(expected_tag));
@@ -173,6 +174,11 @@ impl TestHarness {
             let arg = expected_val.arg();
             let mut expected = vec![0; caller_val.bytes.len().max(callee_val.bytes.len())];
             expected_val.fill_bytes(&mut expected);
+            // The generators lay values out little-endian, but both sides report the
+            // bytes as the target actually stores them, so flip ours to match
+            if let Endian::Big = self.toolchains.platform_info.target.target_endian {
+                expected.reverse();
+            }
             // FIXME: this doesn't do the right thing for enums
             // <https://github.com/Gankra/abi-cafe/issues/34>
             return Err(CheckFailure::ValMismatch {
@@ -192,12 +198,18 @@ impl TestHarness {
 
         Ok(())
     }
-}
 
-fn load_tag(val: &ValBuffer) -> Option<usize> {
-    let buf = val.bytes.get(..4)?;
-    let bytes = <[u8; 4]>::try_from(buf).ok()?;
-    Some(u32::from_ne_bytes(bytes) as usize)
+    fn load_tag(&self, val: &ValBuffer) -> Option<usize> {
+        let buf = val.bytes.get(..4)?;
+        let bytes = <[u8; 4]>::try_from(buf).ok()?;
+        // The test program wrote this, so it's in the target's byte order, not the host's.
+        let tag = match self.toolchains.platform_info.target.target_endian {
+            Endian::Little => u32::from_le_bytes(bytes),
+            Endian::Big => u32::from_be_bytes(bytes),
+            endian => unimplemented!("unknown target endianness {endian:?}"),
+        };
+        Some(tag as usize)
+    }
 }
 
 fn tagged_variant_name(tagged_ty: &kdl_script::types::TaggedTy, tag: Option<usize>) -> String {

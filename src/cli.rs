@@ -108,9 +108,31 @@ struct Cli {
     #[clap(long, short, value_delimiter(','))]
     key: Vec<String>,
 
+    /// the target triple to test (x86_64-unknown-linux-gnu, aarch64-apple-darwin, ...)
+    ///
+    /// default: the host target
+    #[clap(long)]
+    target: Option<String>,
+
+    /// the linker to use when building the final test binaries (aarch64-linux-gnu-gcc, ...)
+    ///
+    /// default: (whatever rustc picks)
+    #[clap(long)]
+    linker: Option<Utf8PathBuf>,
+
     /// final report output format (human, json)
     #[clap(long, default_value_t = OutputFormat::Human)]
     output_format: OutputFormat,
+
+    /// add a c toolchain, with the syntax "flavor:toolchain_name:path/to/compiler"
+    ///
+    /// flavor is one of gcc, clang, msvc or zigcc.
+    ///
+    /// toolchain_name is an arbitrary id to refer to it with in --toolchains and --pairs.
+    ///
+    /// e.g. "clang:custom-clang:/path/to/llvm/bin/clang", then --pairs custom-clang_calls_gcc
+    #[clap(long, value_delimiter(','))]
+    add_cc_toolchain: Vec<String>,
 
     /// add a rustc_codegen_backend, with the syntax "toolchain_name:path/to/backend"
     ///
@@ -172,7 +194,10 @@ pub fn make_app() -> Config {
         gen_vals,
         write_vals,
         minimize_vals,
+        target,
+        linker,
         output_format,
+        add_cc_toolchain,
         add_rustc_codegen_backend,
         add_tests,
         rules,
@@ -194,6 +219,10 @@ pub fn make_app() -> Config {
     let run_writers = write_vals;
     let run_selections = vec![FunctionSelector::All];
     let minimizing_write_impl = minimize_vals;
+
+    let target = target.map(|target| {
+        platforms::Platform::find(&target).unwrap_or_else(|| panic!("unknown --target {target}"))
+    });
 
     let mut run_pairs: Vec<_> = pairs
         .iter()
@@ -226,6 +255,26 @@ pub fn make_app() -> Config {
                 .expect("invalid syntax, must be 'impl_name:path/to/backend'")
         })
         .map(|(a, b)| (String::from(a), String::from(b)))
+        .collect();
+
+    let cc_toolchains = add_cc_toolchain
+        .iter()
+        .map(|spec| {
+            let mut parts = spec.split(':');
+
+            let (Some(flavor), Some(name), Some(path), None) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
+            else {
+                panic!("invalid syntax, must be 'flavor:toolchain_name:path/to/compiler'");
+            };
+
+            let Some(flavor) = CCFlavor::from_name(flavor) else {
+                panic!(
+                    "unknown c toolchain flavor {flavor}, must be one of gcc, clang, msvc, zigcc"
+                );
+            };
+            (flavor, name.to_owned(), Utf8PathBuf::from(path))
+        })
         .collect();
 
     for (name, _path) in &rustc_codegen_backends {
@@ -276,12 +325,15 @@ Hint: Try using `--pairs {name}_calls_rustc` or `--pairs rustc_calls_{name}`.
         runtime_rules_file,
     };
     Config {
+        target,
+        linker,
         output_format,
         run_conventions,
         run_reprs,
         run_toolchains,
         run_tests,
         run_pairs,
+        cc_toolchains,
         rustc_codegen_backends,
         run_values,
         run_writers,

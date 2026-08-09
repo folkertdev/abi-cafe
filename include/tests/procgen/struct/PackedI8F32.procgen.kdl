@@ -1,0 +1,9 @@
+// A packed struct that puts a float at a misaligned offset.
+//
+// This is the riscv64 reproducer from https://github.com/rust-lang/rust/issues/115609.
+
+@packed
+struct "PackedI8F32" {
+    a "i8"
+    f "f32"
+}

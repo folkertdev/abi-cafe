@@ -6,6 +6,7 @@ mod harness;
 mod log;
 mod toolchains;
 
+use camino::Utf8PathBuf;
 use error::*;
 use files::Paths;
 use harness::report::*;
@@ -56,6 +57,8 @@ impl std::str::FromStr for OutputFormat {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub target: Option<&'static platforms::Platform>,
+    pub linker: Option<Utf8PathBuf>,
     pub output_format: OutputFormat,
     pub run_conventions: Vec<CallingConvention>,
     pub run_reprs: Vec<LangRepr>,
@@ -66,6 +69,7 @@ pub struct Config {
     pub run_writers: Vec<WriteImpl>,
     pub run_selections: Vec<FunctionSelector>,
     pub minimizing_write_impl: WriteImpl,
+    pub cc_toolchains: Vec<(CCFlavor, String, Utf8PathBuf)>,
     pub rustc_codegen_backends: Vec<(String, String)>,
     pub disable_builtin_tests: bool,
     pub disable_builtin_rules: bool,
@@ -226,11 +230,9 @@ fn compute_final_report(
     let possible_rules = if expects.is_empty() {
         None
     } else {
+        let target = harness.toolchains.platform_info.target;
         Some(ExpectFile {
-            target: IndexMap::from_iter([(
-                harness.toolchains.platform_info.target.clone(),
-                expects,
-            )]),
+            target: IndexMap::from_iter([(target.target_triple.to_string(), expects)]),
         })
     };
 

@@ -265,6 +265,9 @@ impl RustcToolchain {
         path: &str,
         val: &ValueRef,
     ) -> Result<(), GenerateError> {
+        // Workaround for taking a reference to a field that might be part of a packed struct.
+        let path = &format!("{{{path}}}");
+
         match state.options.val_writer {
             WriteImpl::HarnessCallback => {
                 let val_idx = val.absolute_val_idx;

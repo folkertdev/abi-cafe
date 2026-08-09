@@ -1,0 +1,4 @@
+// A zero-sized struct with a 16-byte alignment.
+@align 16
+struct "AlignedEmptyStruct" {
+}

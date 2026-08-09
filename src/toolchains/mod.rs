@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
+use crate::harness::report::{BuildOutput, LinkOutput};
 use crate::harness::test::*;
 use crate::{error::*, SortedMap};
 
@@ -10,7 +11,7 @@ use kdl_script::PunEnv;
 pub mod c;
 pub mod rust;
 
-pub use c::CcToolchain;
+pub use c::{CCFlavor, CCMode, CcToolchain};
 pub use rust::RustcToolchain;
 
 pub const TOOLCHAIN_RUSTC: &str = "rustc";
@@ -20,17 +21,16 @@ pub const TOOLCHAIN_CLANG: &str = "clang";
 pub const TOOLCHAIN_MSVC: &str = "msvc";
 pub const TOOLCHAIN_ZIGCC: &str = "zigcc";
 
-const C_TOOLCHAINS: &[&str] = &[
-    TOOLCHAIN_CC,
-    TOOLCHAIN_GCC,
-    TOOLCHAIN_CLANG,
-    TOOLCHAIN_MSVC,
-    TOOLCHAIN_ZIGCC,
+const C_TOOLCHAINS: &[CCMode] = &[
+    CCMode::CC,
+    CCMode::Clang,
+    CCMode::Gcc,
+    CCMode::Msvc,
+    CCMode::Zigcc,
 ];
 
 /// A compiler/language toolchain!
 pub trait Toolchain {
-    #[allow(dead_code)]
     fn lang(&self) -> &'static str;
     fn src_ext(&self) -> &'static str;
     fn pun_env(&self) -> Arc<PunEnv>;
@@ -49,12 +49,23 @@ pub trait Toolchain {
         out_dir: &Utf8Path,
         lib_name: &str,
     ) -> Result<String, BuildError>;
+
+    /// Link the caller and callee static libs together with `main_src` (a main
+    /// written in this toolchain's language) into a runnable test binary.
+    fn link_bin(
+        &self,
+        main_src: &Utf8Path,
+        out_dir: &Utf8Path,
+        build: &BuildOutput,
+        bin_name: &str,
+    ) -> Result<LinkOutput, LinkError>;
 }
 
 /// All the toolchains
 pub struct Toolchains {
     pub platform_info: PlatformInfo,
     pub rustc_command: Utf8PathBuf,
+    pub linker: Option<Utf8PathBuf>,
     pub toolchains: ToolchainMap,
     pub debug: bool,
 }
@@ -63,8 +74,10 @@ pub type ToolchainMap = SortedMap<String, Arc<dyn Toolchain + Send + Sync>>;
 #[derive(Debug, Clone)]
 pub struct PlatformInfo {
     /// Platform we're targetting
-    pub target: String,
-    /// Enabled rustc cfgs, used for our own test harness cfgs
+    pub target: &'static platforms::Platform,
+    /// Platform we're running on
+    pub host: &'static platforms::Platform,
+    /// Enabled rustc cfgs of the target, used for our own test harness cfgs
     pub cfgs: Vec<cargo_platform::Cfg>,
 }
 
@@ -78,8 +91,8 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
 
     // Set up env vars for CC
     std::env::set_var("OUT_DIR", &cfg.paths.out_dir);
-    std::env::set_var("HOST", platform_info.target.clone());
-    std::env::set_var("TARGET", platform_info.target.clone());
+    std::env::set_var("HOST", platform_info.host.target_triple);
+    std::env::set_var("TARGET", platform_info.target.target_triple);
     std::env::set_var("OPT_LEVEL", "0");
 
     // Add rust toolchains
@@ -97,13 +110,21 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
         add_toolchain(
             &mut toolchains,
             name,
-            CcToolchain::new(cfg, &platform_info.target, name),
+            CcToolchain::new(cfg, platform_info.target, name),
+        );
+    }
+    for (flavor, name, path) in &cfg.cc_toolchains {
+        add_toolchain(
+            &mut toolchains,
+            name,
+            CcToolchain::new_custom(cfg, platform_info.target, *flavor, path),
         );
     }
 
     Toolchains {
         platform_info,
         rustc_command,
+        linker: cfg.linker.clone(),
         toolchains,
         debug: cfg.debug,
     }

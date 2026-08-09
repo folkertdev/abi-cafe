@@ -78,12 +78,23 @@ impl CcToolchain {
                     val.generate_u16()
                 )?,
                 PrimitiveTy::F128 => {
+                    // Pick `long double , `__float128` or `_Float128` depending on the target.
+                    let (f128_ty_name, _) = &state.tynames[&ty];
+                    let f128_ty_name = f128_ty_name.trim_end();
+
                     let val = val.generate_u128();
                     let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
                     let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+
+                    // Not using u128 here so it also works on 32-bit platforms.
+                    let (first, second) = match self.platform.target_endian {
+                        platforms::Endian::Big => (higher, lower),
+                        platforms::Endian::Little => (lower, higher),
+                        _ => unreachable!("non-exhaustive enum"),
+                    };
                     write!(
                         f,
-                        "(((union {{ __uint128_t bits; __float128 value; }}){{ .bits = ((__uint128_t){lower:#X}ull) | (((__uint128_t){higher:#X}ull) << 64) }}).value)"
+                        "(((union {{ uint64_t bits[2]; {f128_ty_name} value; }}){{ .bits = {{ {first:#X}ull, {second:#X}ull }} }}).value)"
                     )?
                 }
             },
