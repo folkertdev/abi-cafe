@@ -175,6 +175,21 @@ impl CcToolchain {
                             "MSVC doesn't support f128".to_owned(),
                         ))?,
                     },
+
+                    PrimitiveTy::Char => "char ",
+                    PrimitiveTy::SignedChar => "signed char ",
+                    PrimitiveTy::UnsignedChar => "unsigned char ",
+                    PrimitiveTy::Short => "short ",
+                    PrimitiveTy::UnsignedShort => "unsigned short ",
+                    PrimitiveTy::Int => "int ",
+                    PrimitiveTy::UnsignedInt => "unsigned int ",
+                    PrimitiveTy::Long => "long ",
+                    PrimitiveTy::UnsignedLong => "unsigned long ",
+                    PrimitiveTy::LongLong => "long long ",
+                    PrimitiveTy::UnsignedLongLong => "unsigned long long ",
+                    PrimitiveTy::Float => "float ",
+                    PrimitiveTy::Double => "double ",
+                    PrimitiveTy::LongDouble => "long double ",
                 };
                 (name.to_owned(), None)
             }
@@ -279,6 +294,23 @@ impl CcToolchain {
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
+                        // Builtin
+                    }
+
+                    PrimitiveTy::Char
+                    | PrimitiveTy::SignedChar
+                    | PrimitiveTy::UnsignedChar
+                    | PrimitiveTy::Short
+                    | PrimitiveTy::UnsignedShort
+                    | PrimitiveTy::Int
+                    | PrimitiveTy::UnsignedInt
+                    | PrimitiveTy::Long
+                    | PrimitiveTy::UnsignedLong
+                    | PrimitiveTy::LongLong
+                    | PrimitiveTy::UnsignedLongLong
+                    | PrimitiveTy::Float
+                    | PrimitiveTy::Double
+                    | PrimitiveTy::LongDouble => {
                         // Builtin
                     }
                 };
@@ -406,6 +438,23 @@ impl CcToolchain {
                     | PrimitiveTy::F128
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
+                        // Builtin
+                    }
+
+                    PrimitiveTy::Char
+                    | PrimitiveTy::SignedChar
+                    | PrimitiveTy::UnsignedChar
+                    | PrimitiveTy::Short
+                    | PrimitiveTy::UnsignedShort
+                    | PrimitiveTy::Int
+                    | PrimitiveTy::UnsignedInt
+                    | PrimitiveTy::Long
+                    | PrimitiveTy::UnsignedLong
+                    | PrimitiveTy::LongLong
+                    | PrimitiveTy::UnsignedLongLong
+                    | PrimitiveTy::Float
+                    | PrimitiveTy::Double
+                    | PrimitiveTy::LongDouble => {
                         // Builtin
                     }
                 };
