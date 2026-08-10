@@ -1,5 +1,6 @@
 use super::*;
-use kdl_script::types::{Ty, TyIdx};
+use kdl_script::types::{PrimitiveTy, Ty, TyIdx};
+use platforms::{Arch, Env};
 use std::fmt::Write;
 
 impl CcToolchain {
@@ -259,7 +260,12 @@ impl CcToolchain {
                 } else {
                     path
                 };
-                writeln!(f, "write_val({to}, {val_idx}, {rvalue});")?;
+                if self.is_x87_long_double(state, val.ty) {
+                    // Only the first 10 bytes of an x87 `long double` are meaningful.
+                    writeln!(f, "WRITE_VAL({to}, {val_idx}, (char*)&{rvalue}, 10);")?;
+                } else {
+                    writeln!(f, "write_val({to}, {val_idx}, {rvalue});")?;
+                }
             }
             WriteImpl::Assert => {
                 write!(f, "assert_eq({path}, ")?;
@@ -274,6 +280,19 @@ impl CcToolchain {
             }
         }
         Ok(())
+    }
+
+    /// Is this the x87 80-bit float type?
+    fn is_x87_long_double(&self, state: &TestState, ty: TyIdx) -> bool {
+        let is_long_double = matches!(
+            state.types.realize_ty(ty),
+            Ty::Primitive(PrimitiveTy::LongDouble)
+        );
+
+        // on MSVC `long double` is just a `double` (i.e. f64).
+        is_long_double
+            && matches!(self.platform.target_arch, Arch::X86 | Arch::X86_64)
+            && !matches!(self.platform.target_env, Env::Msvc)
     }
 
     pub fn write_tag_field(

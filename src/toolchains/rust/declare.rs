@@ -102,6 +102,27 @@ impl RustcToolchain {
                             ))?;
                         }
                     }
+
+                    PrimitiveTy::Char => "core::ffi::c_char",
+                    PrimitiveTy::SignedChar => "core::ffi::c_schar",
+                    PrimitiveTy::UnsignedChar => "core::ffi::c_uchar",
+                    PrimitiveTy::Short => "core::ffi::c_short",
+                    PrimitiveTy::UnsignedShort => "core::ffi::c_ushort",
+                    PrimitiveTy::Int => "core::ffi::c_int",
+                    PrimitiveTy::UnsignedInt => "core::ffi::c_uint",
+                    PrimitiveTy::Long => "core::ffi::c_long",
+                    PrimitiveTy::UnsignedLong => "core::ffi::c_ulong",
+                    PrimitiveTy::LongLong => "core::ffi::c_longlong",
+                    PrimitiveTy::UnsignedLongLong => "core::ffi::c_ulonglong",
+                    PrimitiveTy::Float => "core::ffi::c_float",
+                    PrimitiveTy::Double => "core::ffi::c_double",
+
+                    PrimitiveTy::LongDouble => {
+                        // FIXME: use core::ffi::c_longdouble once it exists.
+                        return Err(UnsupportedError::Other(
+                            "rust doesn't have c_longdouble".to_owned(),
+                        ))?;
+                    }
                 };
                 (name.to_owned(), None)
             }
@@ -300,6 +321,23 @@ impl RustcToolchain {
                     | PrimitiveTy::Ptr => {
                         // Builtin
                     }
+
+                    PrimitiveTy::Char
+                    | PrimitiveTy::SignedChar
+                    | PrimitiveTy::UnsignedChar
+                    | PrimitiveTy::Short
+                    | PrimitiveTy::UnsignedShort
+                    | PrimitiveTy::Int
+                    | PrimitiveTy::UnsignedInt
+                    | PrimitiveTy::Long
+                    | PrimitiveTy::UnsignedLong
+                    | PrimitiveTy::LongLong
+                    | PrimitiveTy::UnsignedLongLong
+                    | PrimitiveTy::Float
+                    | PrimitiveTy::Double
+                    | PrimitiveTy::LongDouble => {
+                        // Builtin
+                    }
                 };
             }
             Ty::Array(ArrayTy { .. }) => {
@@ -361,6 +399,25 @@ impl RustcToolchain {
                                 | PrimitiveTy::F128
                                 | PrimitiveTy::Bool
                                 | PrimitiveTy::Ptr => {
+                                    return Err(UnsupportedError::Other(format!(
+                                        "unsupport repr({prim:?})"
+                                    )))?;
+                                }
+
+                                PrimitiveTy::Char
+                                | PrimitiveTy::SignedChar
+                                | PrimitiveTy::UnsignedChar
+                                | PrimitiveTy::Short
+                                | PrimitiveTy::UnsignedShort
+                                | PrimitiveTy::Int
+                                | PrimitiveTy::UnsignedInt
+                                | PrimitiveTy::Long
+                                | PrimitiveTy::UnsignedLong
+                                | PrimitiveTy::LongLong
+                                | PrimitiveTy::UnsignedLongLong
+                                | PrimitiveTy::Float
+                                | PrimitiveTy::Double
+                                | PrimitiveTy::LongDouble => {
                                     return Err(UnsupportedError::Other(format!(
                                         "unsupport repr({prim:?})"
                                     )))?;

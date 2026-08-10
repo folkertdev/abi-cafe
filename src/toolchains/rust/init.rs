@@ -44,6 +44,52 @@ impl RustcToolchain {
                 }
                 PrimitiveTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
                 PrimitiveTy::F128 => write!(f, "f128::from_bits({})", val.generate_u128())?,
+
+                // Use an as-cast to truncate the value if it is too big for the target.
+                PrimitiveTy::Char => write!(f, "({}u8 as core::ffi::c_char)", val.generate_u8())?,
+                PrimitiveTy::SignedChar => {
+                    write!(f, "({}u8 as core::ffi::c_schar)", val.generate_u8())?
+                }
+                PrimitiveTy::UnsignedChar => {
+                    write!(f, "({}u8 as core::ffi::c_uchar)", val.generate_u8())?
+                }
+                PrimitiveTy::Short => {
+                    write!(f, "({}u16 as core::ffi::c_short)", val.generate_u16())?
+                }
+                PrimitiveTy::UnsignedShort => {
+                    write!(f, "({}u16 as core::ffi::c_ushort)", val.generate_u16())?
+                }
+                PrimitiveTy::Int => write!(f, "({}u32 as core::ffi::c_int)", val.generate_u32())?,
+                PrimitiveTy::UnsignedInt => {
+                    write!(f, "({}u32 as core::ffi::c_uint)", val.generate_u32())?
+                }
+                PrimitiveTy::Long => write!(f, "({}u64 as core::ffi::c_long)", val.generate_u64())?,
+                PrimitiveTy::UnsignedLong => {
+                    write!(f, "({}u64 as core::ffi::c_ulong)", val.generate_u64())?
+                }
+                PrimitiveTy::LongLong => {
+                    write!(f, "({}u64 as core::ffi::c_longlong)", val.generate_u64())?
+                }
+                PrimitiveTy::UnsignedLongLong => {
+                    write!(f, "({}u64 as core::ffi::c_ulonglong)", val.generate_u64())?
+                }
+
+                PrimitiveTy::Float => {
+                    write!(f, "core::ffi::c_float::from_bits({})", val.generate_u32())?
+                }
+                PrimitiveTy::Double => {
+                    if self.platform_info.target.target_arch == platforms::Arch::Avr {
+                        write!(f, "core::ffi::c_double::from_bits({})", val.generate_u32())?
+                    } else {
+                        write!(f, "core::ffi::c_double::from_bits({})", val.generate_u64())?
+                    }
+                }
+                PrimitiveTy::LongDouble => {
+                    // FIXME: use core::ffi::c_longdouble once it exists.
+                    return Err(UnsupportedError::Other(
+                        "rust doesn't have c_longdouble".to_owned(),
+                    ))?;
+                }
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

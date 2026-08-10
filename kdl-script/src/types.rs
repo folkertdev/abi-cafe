@@ -205,6 +205,36 @@ pub enum PrimitiveTy {
     Bool,
     /// An opaque pointer (like `void*`)
     Ptr,
+
+    // C arithmetic types
+    /// `char` (signedness is target-dependent)
+    Char,
+    /// `signed char`
+    SignedChar,
+    /// `unsigned char`
+    UnsignedChar,
+    /// `short`
+    Short,
+    /// `unsigned short`
+    UnsignedShort,
+    /// `int`
+    Int,
+    /// `unsigned int`
+    UnsignedInt,
+    /// `long`
+    Long,
+    /// `unsigned long`
+    UnsignedLong,
+    /// `long long`
+    LongLong,
+    /// `unsigned long long`
+    UnsignedLongLong,
+    /// `float`
+    Float,
+    /// `double`
+    Double,
+    /// `long double`
+    LongDouble,
 }
 
 pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
@@ -226,6 +256,21 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("f128", PrimitiveTy::F128),
     ("bool", PrimitiveTy::Bool),
     ("ptr", PrimitiveTy::Ptr),
+    // C arithmetic types
+    ("c_char", PrimitiveTy::Char),
+    ("c_schar", PrimitiveTy::SignedChar),
+    ("c_uchar", PrimitiveTy::UnsignedChar),
+    ("c_short", PrimitiveTy::Short),
+    ("c_ushort", PrimitiveTy::UnsignedShort),
+    ("c_int", PrimitiveTy::Int),
+    ("c_uint", PrimitiveTy::UnsignedInt),
+    ("c_long", PrimitiveTy::Long),
+    ("c_ulong", PrimitiveTy::UnsignedLong),
+    ("c_longlong", PrimitiveTy::LongLong),
+    ("c_ulonglong", PrimitiveTy::UnsignedLongLong),
+    ("c_float", PrimitiveTy::Float),
+    ("c_double", PrimitiveTy::Double),
+    ("c_longdouble", PrimitiveTy::LongDouble),
 ];
 
 /// The Ty of a nominal struct.
