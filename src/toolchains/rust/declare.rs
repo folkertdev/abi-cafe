@@ -1,6 +1,8 @@
 use super::*;
 use kdl_script::parse::{Attr, AttrAligned, AttrPacked, AttrPassthrough, AttrRepr, LangRepr, Repr};
-use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{
+    AliasTy, ArrayTy, CArithmeticTy, FuncIdx, PrimitiveTy, RefTy, RustArithmeticTy, Ty, TyIdx,
+};
 use std::fmt::Write;
 
 impl RustcToolchain {
@@ -64,65 +66,69 @@ impl RustcToolchain {
             // intern the name of
             Ty::Primitive(prim) => {
                 let name = match prim {
-                    PrimitiveTy::I8 => "i8",
-                    PrimitiveTy::I16 => "i16",
-                    PrimitiveTy::I32 => "i32",
-                    PrimitiveTy::I64 => "i64",
-                    PrimitiveTy::I128 => "i128",
-                    PrimitiveTy::U8 => "u8",
-                    PrimitiveTy::U16 => "u16",
-                    PrimitiveTy::U32 => "u32",
-                    PrimitiveTy::U64 => "u64",
-                    PrimitiveTy::U128 => "u128",
-                    PrimitiveTy::F32 => "f32",
-                    PrimitiveTy::F64 => "f64",
                     PrimitiveTy::Bool => "bool",
                     PrimitiveTy::Ptr => "*mut ()",
-                    PrimitiveTy::I256 => {
-                        Err(UnsupportedError::Other("rust doesn't have i256".to_owned()))?
-                    }
-                    PrimitiveTy::U256 => {
-                        Err(UnsupportedError::Other("rust doesn't have u256".to_owned()))?
-                    }
-                    PrimitiveTy::F16 => {
-                        if self.is_nightly {
-                            "f16"
-                        } else {
+
+                    PrimitiveTy::RustArithmeticTy(rust_arith_ty) => match rust_arith_ty {
+                        RustArithmeticTy::I8 => "i8",
+                        RustArithmeticTy::I16 => "i16",
+                        RustArithmeticTy::I32 => "i32",
+                        RustArithmeticTy::I64 => "i64",
+                        RustArithmeticTy::I128 => "i128",
+                        RustArithmeticTy::U8 => "u8",
+                        RustArithmeticTy::U16 => "u16",
+                        RustArithmeticTy::U32 => "u32",
+                        RustArithmeticTy::U64 => "u64",
+                        RustArithmeticTy::U128 => "u128",
+                        RustArithmeticTy::F32 => "f32",
+                        RustArithmeticTy::F64 => "f64",
+                        RustArithmeticTy::I256 => {
+                            Err(UnsupportedError::Other("rust doesn't have i256".to_owned()))?
+                        }
+                        RustArithmeticTy::U256 => {
+                            Err(UnsupportedError::Other("rust doesn't have u256".to_owned()))?
+                        }
+                        RustArithmeticTy::F16 => {
+                            if self.is_nightly {
+                                "f16"
+                            } else {
+                                return Err(UnsupportedError::Other(
+                                    "f16 is an unstable rust feature, requires nightly".to_owned(),
+                                ))?;
+                            }
+                        }
+                        RustArithmeticTy::F128 => {
+                            if self.is_nightly {
+                                "f128"
+                            } else {
+                                return Err(UnsupportedError::Other(
+                                    "f128 is an unstable rust feature, requires nightly".to_owned(),
+                                ))?;
+                            }
+                        }
+                    },
+
+                    PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
+                        CArithmeticTy::Char => "core::ffi::c_char",
+                        CArithmeticTy::SignedChar => "core::ffi::c_schar",
+                        CArithmeticTy::UnsignedChar => "core::ffi::c_uchar",
+                        CArithmeticTy::Short => "core::ffi::c_short",
+                        CArithmeticTy::UnsignedShort => "core::ffi::c_ushort",
+                        CArithmeticTy::Int => "core::ffi::c_int",
+                        CArithmeticTy::UnsignedInt => "core::ffi::c_uint",
+                        CArithmeticTy::Long => "core::ffi::c_long",
+                        CArithmeticTy::UnsignedLong => "core::ffi::c_ulong",
+                        CArithmeticTy::LongLong => "core::ffi::c_longlong",
+                        CArithmeticTy::UnsignedLongLong => "core::ffi::c_ulonglong",
+                        CArithmeticTy::Float => "core::ffi::c_float",
+                        CArithmeticTy::Double => "core::ffi::c_double",
+                        CArithmeticTy::LongDouble => {
+                            // FIXME: use core::ffi::c_longdouble once it exists.
                             return Err(UnsupportedError::Other(
-                                "f16 is an unstable rust feature, requires nightly".to_owned(),
+                                "rust doesn't have c_longdouble".to_owned(),
                             ))?;
                         }
-                    }
-                    PrimitiveTy::F128 => {
-                        if self.is_nightly {
-                            "f128"
-                        } else {
-                            return Err(UnsupportedError::Other(
-                                "f128 is an unstable rust feature, requires nightly".to_owned(),
-                            ))?;
-                        }
-                    }
-
-                    PrimitiveTy::Char => "core::ffi::c_char",
-                    PrimitiveTy::SignedChar => "core::ffi::c_schar",
-                    PrimitiveTy::UnsignedChar => "core::ffi::c_uchar",
-                    PrimitiveTy::Short => "core::ffi::c_short",
-                    PrimitiveTy::UnsignedShort => "core::ffi::c_ushort",
-                    PrimitiveTy::Int => "core::ffi::c_int",
-                    PrimitiveTy::UnsignedInt => "core::ffi::c_uint",
-                    PrimitiveTy::Long => "core::ffi::c_long",
-                    PrimitiveTy::UnsignedLong => "core::ffi::c_ulong",
-                    PrimitiveTy::LongLong => "core::ffi::c_longlong",
-                    PrimitiveTy::UnsignedLongLong => "core::ffi::c_ulonglong",
-                    PrimitiveTy::Float => "core::ffi::c_float",
-                    PrimitiveTy::Double => "core::ffi::c_double",
-
-                    PrimitiveTy::LongDouble => {
-                        // FIXME: use core::ffi::c_longdouble once it exists.
-                        return Err(UnsupportedError::Other(
-                            "rust doesn't have c_longdouble".to_owned(),
-                        ))?;
-                    }
+                    },
                 };
                 (name.to_owned(), None)
             }
@@ -301,41 +307,45 @@ impl RustcToolchain {
             }
             Ty::Primitive(prim) => {
                 match prim {
-                    PrimitiveTy::I8
-                    | PrimitiveTy::I16
-                    | PrimitiveTy::I32
-                    | PrimitiveTy::I64
-                    | PrimitiveTy::I128
-                    | PrimitiveTy::I256
-                    | PrimitiveTy::U8
-                    | PrimitiveTy::U16
-                    | PrimitiveTy::U32
-                    | PrimitiveTy::U64
-                    | PrimitiveTy::U128
-                    | PrimitiveTy::U256
-                    | PrimitiveTy::F16
-                    | PrimitiveTy::F32
-                    | PrimitiveTy::F64
-                    | PrimitiveTy::F128
+                    PrimitiveTy::RustArithmeticTy(
+                        RustArithmeticTy::I8
+                        | RustArithmeticTy::I16
+                        | RustArithmeticTy::I32
+                        | RustArithmeticTy::I64
+                        | RustArithmeticTy::I128
+                        | RustArithmeticTy::I256
+                        | RustArithmeticTy::U8
+                        | RustArithmeticTy::U16
+                        | RustArithmeticTy::U32
+                        | RustArithmeticTy::U64
+                        | RustArithmeticTy::U128
+                        | RustArithmeticTy::U256
+                        | RustArithmeticTy::F16
+                        | RustArithmeticTy::F32
+                        | RustArithmeticTy::F64
+                        | RustArithmeticTy::F128,
+                    )
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
                         // Builtin
                     }
 
-                    PrimitiveTy::Char
-                    | PrimitiveTy::SignedChar
-                    | PrimitiveTy::UnsignedChar
-                    | PrimitiveTy::Short
-                    | PrimitiveTy::UnsignedShort
-                    | PrimitiveTy::Int
-                    | PrimitiveTy::UnsignedInt
-                    | PrimitiveTy::Long
-                    | PrimitiveTy::UnsignedLong
-                    | PrimitiveTy::LongLong
-                    | PrimitiveTy::UnsignedLongLong
-                    | PrimitiveTy::Float
-                    | PrimitiveTy::Double
-                    | PrimitiveTy::LongDouble => {
+                    PrimitiveTy::CArithmeticTy(
+                        CArithmeticTy::Char
+                        | CArithmeticTy::SignedChar
+                        | CArithmeticTy::UnsignedChar
+                        | CArithmeticTy::Short
+                        | CArithmeticTy::UnsignedShort
+                        | CArithmeticTy::Int
+                        | CArithmeticTy::UnsignedInt
+                        | CArithmeticTy::Long
+                        | CArithmeticTy::UnsignedLong
+                        | CArithmeticTy::LongLong
+                        | CArithmeticTy::UnsignedLongLong
+                        | CArithmeticTy::Float
+                        | CArithmeticTy::Double
+                        | CArithmeticTy::LongDouble,
+                    ) => {
                         // Builtin
                     }
                 };
@@ -381,43 +391,52 @@ impl RustcToolchain {
                     for repr in reprs {
                         let val = match repr {
                             Repr::Primitive(prim) => match prim {
-                                PrimitiveTy::I8 => "i8",
-                                PrimitiveTy::I16 => "i16",
-                                PrimitiveTy::I32 => "i32",
-                                PrimitiveTy::I64 => "i64",
-                                PrimitiveTy::I128 => "i128",
-                                PrimitiveTy::U8 => "u8",
-                                PrimitiveTy::U16 => "u16",
-                                PrimitiveTy::U32 => "u32",
-                                PrimitiveTy::U64 => "u64",
-                                PrimitiveTy::U128 => "u128",
-                                PrimitiveTy::I256
-                                | PrimitiveTy::U256
-                                | PrimitiveTy::F16
-                                | PrimitiveTy::F32
-                                | PrimitiveTy::F64
-                                | PrimitiveTy::F128
-                                | PrimitiveTy::Bool
-                                | PrimitiveTy::Ptr => {
+                                PrimitiveTy::RustArithmeticTy(rust_arith_ty) => match rust_arith_ty
+                                {
+                                    RustArithmeticTy::I8 => "i8",
+                                    RustArithmeticTy::I16 => "i16",
+                                    RustArithmeticTy::I32 => "i32",
+                                    RustArithmeticTy::I64 => "i64",
+                                    RustArithmeticTy::I128 => "i128",
+                                    RustArithmeticTy::U8 => "u8",
+                                    RustArithmeticTy::U16 => "u16",
+                                    RustArithmeticTy::U32 => "u32",
+                                    RustArithmeticTy::U64 => "u64",
+                                    RustArithmeticTy::U128 => "u128",
+                                    RustArithmeticTy::I256
+                                    | RustArithmeticTy::U256
+                                    | RustArithmeticTy::F16
+                                    | RustArithmeticTy::F32
+                                    | RustArithmeticTy::F64
+                                    | RustArithmeticTy::F128 => {
+                                        return Err(UnsupportedError::Other(format!(
+                                            "unsupport repr({prim:?})"
+                                        )))?;
+                                    }
+                                },
+
+                                PrimitiveTy::Bool | PrimitiveTy::Ptr => {
                                     return Err(UnsupportedError::Other(format!(
                                         "unsupport repr({prim:?})"
                                     )))?;
                                 }
 
-                                PrimitiveTy::Char
-                                | PrimitiveTy::SignedChar
-                                | PrimitiveTy::UnsignedChar
-                                | PrimitiveTy::Short
-                                | PrimitiveTy::UnsignedShort
-                                | PrimitiveTy::Int
-                                | PrimitiveTy::UnsignedInt
-                                | PrimitiveTy::Long
-                                | PrimitiveTy::UnsignedLong
-                                | PrimitiveTy::LongLong
-                                | PrimitiveTy::UnsignedLongLong
-                                | PrimitiveTy::Float
-                                | PrimitiveTy::Double
-                                | PrimitiveTy::LongDouble => {
+                                PrimitiveTy::CArithmeticTy(
+                                    CArithmeticTy::Char
+                                    | CArithmeticTy::SignedChar
+                                    | CArithmeticTy::UnsignedChar
+                                    | CArithmeticTy::Short
+                                    | CArithmeticTy::UnsignedShort
+                                    | CArithmeticTy::Int
+                                    | CArithmeticTy::UnsignedInt
+                                    | CArithmeticTy::Long
+                                    | CArithmeticTy::UnsignedLong
+                                    | CArithmeticTy::LongLong
+                                    | CArithmeticTy::UnsignedLongLong
+                                    | CArithmeticTy::Float
+                                    | CArithmeticTy::Double
+                                    | CArithmeticTy::LongDouble,
+                                ) => {
                                     return Err(UnsupportedError::Other(format!(
                                         "unsupport repr({prim:?})"
                                     )))?;

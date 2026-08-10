@@ -23,8 +23,12 @@ impl RustcToolchain {
             match def {
                 kdl_script::Definition::DeclareTy(ty) | kdl_script::Definition::DefineTy(ty) => {
                     match state.types.realize_ty(ty) {
-                        Ty::Primitive(PrimitiveTy::F16) => has_f16 = true,
-                        Ty::Primitive(PrimitiveTy::F128) => has_f128 = true,
+                        Ty::Primitive(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F16)) => {
+                            has_f16 = true
+                        }
+                        Ty::Primitive(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)) => {
+                            has_f128 = true
+                        }
                         _ => {}
                     }
                 }

@@ -169,6 +169,18 @@ pub struct Arg {
 /// A primitive
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveTy {
+    /// A Rust arithmetic type like `i32` or `f64`.
+    RustArithmeticTy(RustArithmeticTy),
+    /// A C arithmetic type like `int` or `double`.
+    CArithmeticTy(CArithmeticTy),
+    /// `bool`
+    Bool,
+    /// An opaque pointer (like `void*`)
+    Ptr,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum RustArithmeticTy {
     /// `i8` / `int8_t`
     I8,
     /// `i16` / `int16_t`
@@ -201,12 +213,10 @@ pub enum PrimitiveTy {
     F64,
     /// `f128` / `quad`
     F128,
-    /// `bool`
-    Bool,
-    /// An opaque pointer (like `void*`)
-    Ptr,
+}
 
-    // C arithmetic types
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum CArithmeticTy {
     /// `char` (signedness is target-dependent)
     Char,
     /// `signed char`
@@ -237,41 +247,52 @@ pub enum PrimitiveTy {
     LongDouble,
 }
 
+#[rustfmt::skip]
 pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
-    ("i8", PrimitiveTy::I8),
-    ("i16", PrimitiveTy::I16),
-    ("i32", PrimitiveTy::I32),
-    ("i64", PrimitiveTy::I64),
-    ("i128", PrimitiveTy::I128),
-    ("i256", PrimitiveTy::I256),
-    ("u8", PrimitiveTy::U8),
-    ("u16", PrimitiveTy::U16),
-    ("u32", PrimitiveTy::U32),
-    ("u64", PrimitiveTy::U64),
-    ("u128", PrimitiveTy::U128),
-    ("u256", PrimitiveTy::U256),
-    ("f16", PrimitiveTy::F16),
-    ("f32", PrimitiveTy::F32),
-    ("f64", PrimitiveTy::F64),
-    ("f128", PrimitiveTy::F128),
+    ("i8", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I8)),
+    ("i16", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I16)),
+    ("i32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I32)),
+    ("i64", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I64)),
+    ("i128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I128)),
+    ("i256", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I256)),
+    ("u8", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U8)),
+    ("u16", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U16)),
+    ("u32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U32)),
+    ("u64", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U64)),
+    ("u128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U128)),
+    ("u256", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U256)),
+    ("f16", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F16)),
+    ("f32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F32)),
+    ("f64", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F64)),
+    ("f128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)),
     ("bool", PrimitiveTy::Bool),
     ("ptr", PrimitiveTy::Ptr),
     // C arithmetic types
-    ("c_char", PrimitiveTy::Char),
-    ("c_schar", PrimitiveTy::SignedChar),
-    ("c_uchar", PrimitiveTy::UnsignedChar),
-    ("c_short", PrimitiveTy::Short),
-    ("c_ushort", PrimitiveTy::UnsignedShort),
-    ("c_int", PrimitiveTy::Int),
-    ("c_uint", PrimitiveTy::UnsignedInt),
-    ("c_long", PrimitiveTy::Long),
-    ("c_ulong", PrimitiveTy::UnsignedLong),
-    ("c_longlong", PrimitiveTy::LongLong),
-    ("c_ulonglong", PrimitiveTy::UnsignedLongLong),
-    ("c_float", PrimitiveTy::Float),
-    ("c_double", PrimitiveTy::Double),
-    ("c_longdouble", PrimitiveTy::LongDouble),
+    ("c_char", PrimitiveTy::CArithmeticTy(CArithmeticTy::Char)),
+    ("c_schar", PrimitiveTy::CArithmeticTy(CArithmeticTy::SignedChar)),
+    ("c_uchar", PrimitiveTy::CArithmeticTy(CArithmeticTy::UnsignedChar)),
+    ("c_short", PrimitiveTy::CArithmeticTy(CArithmeticTy::Short)),
+    ("c_ushort", PrimitiveTy::CArithmeticTy(CArithmeticTy::UnsignedShort)),
+    ("c_int", PrimitiveTy::CArithmeticTy(CArithmeticTy::Int)),
+    ("c_uint", PrimitiveTy::CArithmeticTy(CArithmeticTy::UnsignedInt)),
+    ("c_long", PrimitiveTy::CArithmeticTy(CArithmeticTy::Long)),
+    ("c_ulong", PrimitiveTy::CArithmeticTy(CArithmeticTy::UnsignedLong)),
+    ("c_longlong", PrimitiveTy::CArithmeticTy(CArithmeticTy::LongLong)),
+    ("c_ulonglong", PrimitiveTy::CArithmeticTy(CArithmeticTy::UnsignedLongLong)),
+    ("c_float", PrimitiveTy::CArithmeticTy(CArithmeticTy::Float)),
+    ("c_double", PrimitiveTy::CArithmeticTy(CArithmeticTy::Double)),
+    ("c_longdouble", PrimitiveTy::CArithmeticTy(CArithmeticTy::LongDouble)),
 ];
+
+impl std::fmt::Display for PrimitiveTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (name, _) = PRIMITIVES
+            .iter()
+            .find(|(_, prim)| prim == self)
+            .expect("primitive is in PRIMITIVES");
+        f.write_str(name)
+    }
+}
 
 /// The Ty of a nominal struct.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -980,7 +1001,7 @@ impl TyCtx {
     /// Stringify a type.
     pub fn format_ty(&self, ty: TyIdx) -> String {
         match self.realize_ty(ty) {
-            Ty::Primitive(prim) => format!("{:?}", prim).to_lowercase(),
+            Ty::Primitive(prim) => prim.to_string(),
             Ty::Empty => "()".to_string(),
             Ty::Struct(decl) => format!("{}", decl.name),
             Ty::Enum(decl) => format!("{}", decl.name),

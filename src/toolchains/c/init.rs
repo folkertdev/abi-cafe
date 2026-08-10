@@ -1,6 +1,8 @@
 use super::*;
 use crate::harness::vals::{ArgValuesIter, Value};
-use kdl_script::types::{AliasTy, ArrayTy, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{
+    AliasTy, ArrayTy, CArithmeticTy, PrimitiveTy, RefTy, RustArithmeticTy, Ty, TyIdx,
+};
 use std::fmt::Write;
 
 impl CcToolchain {
@@ -15,50 +17,8 @@ impl CcToolchain {
         match state.types.realize_ty(ty) {
             // Primitives are the only "real" values with actual bytes that advance val_idx
             Ty::Primitive(prim) => match prim {
-                PrimitiveTy::I8 => write!(f, "{}", val.generate_i8())?,
-                PrimitiveTy::I16 => write!(f, "{}", val.generate_i16())?,
-                PrimitiveTy::I32 => write!(f, "{}", val.generate_i32())?,
-                PrimitiveTy::I64 => write!(f, "{}", val.generate_i64())?,
-                PrimitiveTy::U8 => write!(f, "{}", val.generate_u8())?,
-                PrimitiveTy::U16 => write!(f, "{}", val.generate_u16())?,
-                PrimitiveTy::U32 => write!(f, "{}", val.generate_u32())?,
-                PrimitiveTy::U64 => write!(f, "{}ull", val.generate_u64())?,
-                PrimitiveTy::I128 => {
-                    let val = val.generate_i128();
-                    let lower = (val as u128) & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
-                    let higher = ((val as u128) & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
-                    write!(
-                        f,
-                        "((__int128_t){lower:#X}ull) | (((__int128_t){higher:#X}ull) << 64)"
-                    )?
-                }
-                PrimitiveTy::U128 => {
-                    let val = val.generate_u128();
-                    let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
-                    let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
-                    write!(
-                        f,
-                        "((__uint128_t){lower:#X}ull) | (((__uint128_t){higher:#X}ull) << 64)"
-                    )?
-                }
-
-                PrimitiveTy::F32 => {
-                    let val = f32::from_bits(val.generate_u32());
-                    if val.fract() == 0.0 {
-                        write!(f, "{val}.0f")?
-                    } else {
-                        write!(f, "{val}f")?
-                    }
-                }
-                PrimitiveTy::F64 => {
-                    let val = f64::from_bits(val.generate_u64());
-                    if val.fract() == 0.0 {
-                        write!(f, "{val}.0")?
-                    } else {
-                        write!(f, "{val}")?
-                    }
-                }
                 PrimitiveTy::Bool => write!(f, "{}", val.generate_bool())?,
+
                 PrimitiveTy::Ptr => {
                     if true {
                         write!(f, "(void*){:#X}ull", val.generate_u64())?
@@ -66,94 +26,147 @@ impl CcToolchain {
                         write!(f, "(void*){:#X}ul", val.generate_u32())?
                     }
                 }
-                PrimitiveTy::I256 => {
-                    Err(UnsupportedError::Other("c doesn't have i256?".to_owned()))?
-                }
-                PrimitiveTy::U256 => {
-                    Err(UnsupportedError::Other("c doesn't have u256?".to_owned()))?
-                }
-                PrimitiveTy::F16 => write!(
-                    f,
-                    "(((union {{ uint16_t bits; _Float16 value; }}){{ .bits = {} }}).value)",
-                    val.generate_u16()
-                )?,
-                PrimitiveTy::F128 => {
-                    // Pick `long double , `__float128` or `_Float128` depending on the target.
-                    let (f128_ty_name, _) = &state.tynames[&ty];
-                    let f128_ty_name = f128_ty_name.trim_end();
 
-                    let val = val.generate_u128();
-                    let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
-                    let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+                PrimitiveTy::RustArithmeticTy(rust_arith_ty) => match rust_arith_ty {
+                    RustArithmeticTy::I8 => write!(f, "{}", val.generate_i8())?,
+                    RustArithmeticTy::I16 => write!(f, "{}", val.generate_i16())?,
+                    RustArithmeticTy::I32 => write!(f, "{}", val.generate_i32())?,
+                    RustArithmeticTy::I64 => write!(f, "{}", val.generate_i64())?,
+                    RustArithmeticTy::U8 => write!(f, "{}", val.generate_u8())?,
+                    RustArithmeticTy::U16 => write!(f, "{}", val.generate_u16())?,
+                    RustArithmeticTy::U32 => write!(f, "{}", val.generate_u32())?,
+                    RustArithmeticTy::U64 => write!(f, "{}ull", val.generate_u64())?,
+                    RustArithmeticTy::I128 => {
+                        let val = val.generate_i128();
+                        let lower = (val as u128) & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
+                        let higher =
+                            ((val as u128) & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+                        write!(
+                            f,
+                            "((__int128_t){lower:#X}ull) | (((__int128_t){higher:#X}ull) << 64)"
+                        )?
+                    }
+                    RustArithmeticTy::U128 => {
+                        let val = val.generate_u128();
+                        let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
+                        let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+                        write!(
+                            f,
+                            "((__uint128_t){lower:#X}ull) | (((__uint128_t){higher:#X}ull) << 64)"
+                        )?
+                    }
 
-                    // Not using u128 here so it also works on 32-bit platforms.
-                    let (first, second) = match self.platform.target_endian {
-                        platforms::Endian::Big => (higher, lower),
-                        platforms::Endian::Little => (lower, higher),
-                        _ => unreachable!("non-exhaustive enum"),
-                    };
-                    write!(
+                    RustArithmeticTy::F32 => {
+                        let val = f32::from_bits(val.generate_u32());
+                        if val.fract() == 0.0 {
+                            write!(f, "{val}.0f")?
+                        } else {
+                            write!(f, "{val}f")?
+                        }
+                    }
+                    RustArithmeticTy::F64 => {
+                        let val = f64::from_bits(val.generate_u64());
+                        if val.fract() == 0.0 {
+                            write!(f, "{val}.0")?
+                        } else {
+                            write!(f, "{val}")?
+                        }
+                    }
+                    RustArithmeticTy::I256 => {
+                        Err(UnsupportedError::Other("c doesn't have i256?".to_owned()))?
+                    }
+                    RustArithmeticTy::U256 => {
+                        Err(UnsupportedError::Other("c doesn't have u256?".to_owned()))?
+                    }
+                    RustArithmeticTy::F16 => write!(
+                        f,
+                        "(((union {{ uint16_t bits; _Float16 value; }}){{ .bits = {} }}).value)",
+                        val.generate_u16()
+                    )?,
+                    RustArithmeticTy::F128 => {
+                        // Pick `long double , `__float128` or `_Float128` depending on the target.
+                        let (f128_ty_name, _) = &state.tynames[&ty];
+                        let f128_ty_name = f128_ty_name.trim_end();
+
+                        let val = val.generate_u128();
+                        let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
+                        let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+
+                        // Not using u128 here so it also works on 32-bit platforms.
+                        let (first, second) = match self.platform.target_endian {
+                            platforms::Endian::Big => (higher, lower),
+                            platforms::Endian::Little => (lower, higher),
+                            _ => unreachable!("non-exhaustive enum"),
+                        };
+                        write!(
                         f,
                         "(((union {{ uint64_t bits[2]; {f128_ty_name} value; }}){{ .bits = {{ {first:#X}ull, {second:#X}ull }} }}).value)"
                     )?
-                }
+                    }
+                },
 
-                // Explicitly narrow the types (relevant on some targets).
-                PrimitiveTy::Char => write!(f, "((char){})", val.generate_u8())?,
-                PrimitiveTy::SignedChar => write!(f, "((signed char){})", val.generate_u8())?,
-                PrimitiveTy::UnsignedChar => write!(f, "((unsigned char){})", val.generate_u8())?,
-                PrimitiveTy::Short => write!(f, "((short){})", val.generate_u16())?,
-                PrimitiveTy::UnsignedShort => {
-                    write!(f, "((unsigned short){})", val.generate_u16())?
-                }
-                PrimitiveTy::Int => write!(f, "((int){}u)", val.generate_u32())?,
-                PrimitiveTy::UnsignedInt => write!(f, "((unsigned int){}u)", val.generate_u32())?,
-                PrimitiveTy::Long => write!(f, "((long){}ull)", val.generate_u64())?,
-                PrimitiveTy::UnsignedLong => {
-                    write!(f, "((unsigned long){}ull)", val.generate_u64())?
-                }
-                PrimitiveTy::LongLong => write!(f, "((long long){}ull)", val.generate_u64())?,
-                PrimitiveTy::UnsignedLongLong => {
-                    write!(f, "((unsigned long long){}ull)", val.generate_u64())?
-                }
+                PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
+                    // Explicitly narrow the types (relevant on some targets).
+                    CArithmeticTy::Char => write!(f, "((char){})", val.generate_u8())?,
+                    CArithmeticTy::SignedChar => write!(f, "((signed char){})", val.generate_u8())?,
+                    CArithmeticTy::UnsignedChar => {
+                        write!(f, "((unsigned char){})", val.generate_u8())?
+                    }
+                    CArithmeticTy::Short => write!(f, "((short){})", val.generate_u16())?,
+                    CArithmeticTy::UnsignedShort => {
+                        write!(f, "((unsigned short){})", val.generate_u16())?
+                    }
+                    CArithmeticTy::Int => write!(f, "((int){}u)", val.generate_u32())?,
+                    CArithmeticTy::UnsignedInt => {
+                        write!(f, "((unsigned int){}u)", val.generate_u32())?
+                    }
+                    CArithmeticTy::Long => write!(f, "((long){}ull)", val.generate_u64())?,
+                    CArithmeticTy::UnsignedLong => {
+                        write!(f, "((unsigned long){}ull)", val.generate_u64())?
+                    }
+                    CArithmeticTy::LongLong => write!(f, "((long long){}ull)", val.generate_u64())?,
+                    CArithmeticTy::UnsignedLongLong => {
+                        write!(f, "((unsigned long long){}ull)", val.generate_u64())?
+                    }
 
-                // Use a union as an ad-hoc bitcast.
-                PrimitiveTy::Float => write!(
-                    f,
-                    "(((union {{ uint32_t bits; float value; }}){{ .bits = {:#X}u }}).value)",
-                    val.generate_u32()
-                )?,
-                PrimitiveTy::Double => {
-                    if self.platform.target_arch == Arch::Avr {
-                        write!(
+                    // Use a union as an ad-hoc bitcast.
+                    CArithmeticTy::Float => write!(
+                        f,
+                        "(((union {{ uint32_t bits; float value; }}){{ .bits = {:#X}u }}).value)",
+                        val.generate_u32()
+                    )?,
+                    CArithmeticTy::Double => {
+                        if self.platform.target_arch == Arch::Avr {
+                            write!(
                             f,
                             "(((union {{ uint32_t bits; double value; }}){{ .bits = {:#X}u }}).value)",
                             val.generate_u32()
                         )?
-                    } else {
-                        write!(
+                        } else {
+                            write!(
                             f,
                             "(((union {{ uint64_t bits; double value; }}){{ .bits = {:#X}ull }}).value)",
                             val.generate_u64()
                         )?
+                        }
                     }
-                }
-                PrimitiveTy::LongDouble => {
-                    let val = val.generate_u128();
-                    let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
-                    let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
+                    CArithmeticTy::LongDouble => {
+                        let val = val.generate_u128();
+                        let lower = val & 0x0000_0000_0000_0000_FFFF_FFFF_FFFF_FFFF;
+                        let higher = (val & 0xFFFF_FFFF_FFFF_FFFF_0000_0000_0000_0000) >> 64;
 
-                    // Not using u128 here so it also works on 32-bit platforms.
-                    let (first, second) = match self.platform.target_endian {
-                        platforms::Endian::Big => (higher, lower),
-                        platforms::Endian::Little => (lower, higher),
-                        _ => unreachable!("non-exhaustive enum"),
-                    };
-                    write!(
+                        // Not using u128 here so it also works on 32-bit platforms.
+                        let (first, second) = match self.platform.target_endian {
+                            platforms::Endian::Big => (higher, lower),
+                            platforms::Endian::Little => (lower, higher),
+                            _ => unreachable!("non-exhaustive enum"),
+                        };
+                        write!(
                         f,
                         "(((union {{ uint64_t bits[2]; long double value; }}){{ .bits = {{ {first:#X}ull, {second:#X}ull }} }}).value)"
                     )?
-                }
+                    }
+                },
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

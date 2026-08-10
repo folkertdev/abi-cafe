@@ -1,5 +1,5 @@
 use super::*;
-use kdl_script::types::{PrimitiveTy, Ty, TyIdx};
+use kdl_script::types::{CArithmeticTy, PrimitiveTy, Ty, TyIdx};
 use platforms::{Arch, Env};
 use std::fmt::Write;
 
@@ -286,7 +286,7 @@ impl CcToolchain {
     fn is_x87_long_double(&self, state: &TestState, ty: TyIdx) -> bool {
         let is_long_double = matches!(
             state.types.realize_ty(ty),
-            Ty::Primitive(PrimitiveTy::LongDouble)
+            Ty::Primitive(PrimitiveTy::CArithmeticTy(CArithmeticTy::LongDouble))
         );
 
         // on MSVC `long double` is just a `double` (i.e. f64).

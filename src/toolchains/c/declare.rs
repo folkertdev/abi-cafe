@@ -1,6 +1,8 @@
 use super::*;
 use kdl_script::parse::Attr;
-use kdl_script::types::{AliasTy, ArrayTy, FuncIdx, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{
+    AliasTy, ArrayTy, CArithmeticTy, FuncIdx, PrimitiveTy, RefTy, RustArithmeticTy, Ty, TyIdx,
+};
 use platforms::{Arch, Env, Os, PointerWidth};
 use std::fmt::Write;
 
@@ -76,120 +78,135 @@ impl CcToolchain {
             // intern the name of
             Ty::Primitive(prim) => {
                 let name = match prim {
-                    PrimitiveTy::I8 => "int8_t ",
-                    PrimitiveTy::I16 => "int16_t ",
-                    PrimitiveTy::I32 => "int32_t ",
-                    PrimitiveTy::I64 => "int64_t ",
-                    PrimitiveTy::I128 if is_64bit => "__int128_t ",
-                    PrimitiveTy::I128 => Err(UnsupportedError::Other(
-                        "32-bit and 16-bit c don't have i128?".to_owned(),
-                    ))?,
-                    PrimitiveTy::U8 => "uint8_t ",
-                    PrimitiveTy::U16 => "uint16_t ",
-                    PrimitiveTy::U32 => "uint32_t ",
-                    PrimitiveTy::U64 => "uint64_t ",
-                    PrimitiveTy::U128 if is_64bit => "__uint128_t ",
-                    PrimitiveTy::U128 => Err(UnsupportedError::Other(
-                        "32-bit and 16-bit c don't have u128?".to_owned(),
-                    ))?,
-                    PrimitiveTy::F32 => "float ",
-                    PrimitiveTy::F64 => "double ",
                     PrimitiveTy::Bool => "bool ",
                     PrimitiveTy::Ptr => "void *",
-                    PrimitiveTy::I256 => {
-                        Err(UnsupportedError::Other("c doesn't have i256?".to_owned()))?
-                    }
-                    PrimitiveTy::U256 => {
-                        Err(UnsupportedError::Other("c doesn't have u256?".to_owned()))?
-                    }
-                    PrimitiveTy::F16 => match &self.cc_flavor {
-                        CCFlavor::Gcc => match self.platform.target_arch {
-                            Arch::X86
-                            | Arch::X86_64
-                            | Arch::Arm
-                            | Arch::AArch64
-                            | Arch::Riscv32
-                            | Arch::Riscv64 => "_Float16 ",
-                            _ => Err(UnsupportedError::Other(
-                                "GCC isn't known to support f16 on this target".to_owned(),
-                            ))?,
-                        },
-                        CCFlavor::Clang | CCFlavor::Zigcc => match self.platform.target_arch {
-                            Arch::X86_64
-                            | Arch::Arm
-                            | Arch::AArch64
-                            | Arch::Riscv32
-                            | Arch::Riscv64 => "_Float16 ",
-                            Arch::X86 if has_sse2 => "_Float16 ",
-                            _ => Err(UnsupportedError::Other(
-                                "Clang isn't known to support f16 on this target".to_owned(),
-                            ))?,
-                        },
-                        CCFlavor::Msvc => Err(UnsupportedError::Other(
-                            "MSVC doesn't support f16".to_owned(),
-                        ))?,
-                    },
-                    PrimitiveTy::F128 => match &self.cc_flavor {
-                        CCFlavor::Gcc => {
-                            let msg = "GCC isn't known to support f128 on this target";
-                            match self.platform.target_arch {
-                                _ if is_apple => Err(UnsupportedError::Other(msg.to_owned()))?,
+
+                    PrimitiveTy::RustArithmeticTy(rust_arith_ty) => match rust_arith_ty {
+                        RustArithmeticTy::I8 => "int8_t ",
+                        RustArithmeticTy::I16 => "int16_t ",
+                        RustArithmeticTy::I32 => "int32_t ",
+                        RustArithmeticTy::I64 => "int64_t ",
+                        RustArithmeticTy::I128 => {
+                            if is_64bit {
+                                "__int128_t "
+                            } else {
+                                Err(UnsupportedError::Other(
+                                    "32-bit and 16-bit c don't have i128?".to_owned(),
+                                ))?
+                            }
+                        }
+                        RustArithmeticTy::U8 => "uint8_t ",
+                        RustArithmeticTy::U16 => "uint16_t ",
+                        RustArithmeticTy::U32 => "uint32_t ",
+                        RustArithmeticTy::U64 => "uint64_t ",
+                        RustArithmeticTy::U128 => {
+                            if is_64bit {
+                                "__uint128_t "
+                            } else {
+                                Err(UnsupportedError::Other(
+                                    "32-bit and 16-bit c don't have u128?".to_owned(),
+                                ))?
+                            }
+                        }
+                        RustArithmeticTy::F32 => "float ",
+                        RustArithmeticTy::F64 => "double ",
+                        RustArithmeticTy::I256 => {
+                            Err(UnsupportedError::Other("c doesn't have i256?".to_owned()))?
+                        }
+                        RustArithmeticTy::U256 => {
+                            Err(UnsupportedError::Other("c doesn't have u256?".to_owned()))?
+                        }
+                        RustArithmeticTy::F16 => match &self.cc_flavor {
+                            CCFlavor::Gcc => match self.platform.target_arch {
                                 Arch::X86
                                 | Arch::X86_64
+                                | Arch::Arm
                                 | Arch::AArch64
-                                | Arch::Sparc64
-                                | Arch::Mips64
-                                | Arch::Mips64r6
-                                | Arch::S390X
                                 | Arch::Riscv32
-                                | Arch::Riscv64
-                                | Arch::Loongarch64 => "_Float128 ",
-                                Arch::PowerPc64 if has_vsx => "_Float128 ",
-                                Arch::Sparc => "long double ",
-                                _ => Err(UnsupportedError::Other(msg.to_owned()))?,
-                            }
-                        }
-
-                        CCFlavor::Clang | CCFlavor::Zigcc => {
-                            let msg = "Clang isn't known to support f128 on this target";
-                            match self.platform.target_arch {
-                                _ if is_apple || is_msvc => {
-                                    Err(UnsupportedError::Other(msg.to_owned()))?
+                                | Arch::Riscv64 => "_Float16 ",
+                                _ => Err(UnsupportedError::Other(
+                                    "GCC isn't known to support f16 on this target".to_owned(),
+                                ))?,
+                            },
+                            CCFlavor::Clang | CCFlavor::Zigcc => match self.platform.target_arch {
+                                Arch::X86_64
+                                | Arch::Arm
+                                | Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64 => "_Float16 ",
+                                Arch::X86 if has_sse2 => "_Float16 ",
+                                _ => Err(UnsupportedError::Other(
+                                    "Clang isn't known to support f16 on this target".to_owned(),
+                                ))?,
+                            },
+                            CCFlavor::Msvc => Err(UnsupportedError::Other(
+                                "MSVC doesn't support f16".to_owned(),
+                            ))?,
+                        },
+                        RustArithmeticTy::F128 => match &self.cc_flavor {
+                            CCFlavor::Gcc => {
+                                let msg = "GCC isn't known to support f128 on this target";
+                                match self.platform.target_arch {
+                                    _ if is_apple => Err(UnsupportedError::Other(msg.to_owned()))?,
+                                    Arch::X86
+                                    | Arch::X86_64
+                                    | Arch::AArch64
+                                    | Arch::Sparc64
+                                    | Arch::Mips64
+                                    | Arch::Mips64r6
+                                    | Arch::S390X
+                                    | Arch::Riscv32
+                                    | Arch::Riscv64
+                                    | Arch::Loongarch64 => "_Float128 ",
+                                    Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                    Arch::Sparc => "long double ",
+                                    _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                                 }
-                                Arch::X86 | Arch::X86_64 => "__float128 ",
-                                Arch::PowerPc64 if has_vsx => "_Float128 ",
-                                Arch::Mips64 | Arch::Mips64r6 | Arch::S390X => "_Float128 ",
-
-                                // F128 coincides with long double.
-                                Arch::AArch64
-                                | Arch::Riscv32
-                                | Arch::Riscv64
-                                | Arch::Loongarch64
-                                | Arch::Sparc
-                                | Arch::Sparc64 => "long double ",
-                                _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                             }
-                        }
 
-                        CCFlavor::Msvc => Err(UnsupportedError::Other(
-                            "MSVC doesn't support f128".to_owned(),
-                        ))?,
+                            CCFlavor::Clang | CCFlavor::Zigcc => {
+                                let msg = "Clang isn't known to support f128 on this target";
+                                match self.platform.target_arch {
+                                    _ if is_apple || is_msvc => {
+                                        Err(UnsupportedError::Other(msg.to_owned()))?
+                                    }
+                                    Arch::X86 | Arch::X86_64 => "__float128 ",
+                                    Arch::PowerPc64 if has_vsx => "_Float128 ",
+                                    Arch::Mips64 | Arch::Mips64r6 | Arch::S390X => "_Float128 ",
+
+                                    // F128 coincides with long double.
+                                    Arch::AArch64
+                                    | Arch::Riscv32
+                                    | Arch::Riscv64
+                                    | Arch::Loongarch64
+                                    | Arch::Sparc
+                                    | Arch::Sparc64 => "long double ",
+                                    _ => Err(UnsupportedError::Other(msg.to_owned()))?,
+                                }
+                            }
+
+                            CCFlavor::Msvc => Err(UnsupportedError::Other(
+                                "MSVC doesn't support f128".to_owned(),
+                            ))?,
+                        },
                     },
 
-                    PrimitiveTy::Char => "char ",
-                    PrimitiveTy::SignedChar => "signed char ",
-                    PrimitiveTy::UnsignedChar => "unsigned char ",
-                    PrimitiveTy::Short => "short ",
-                    PrimitiveTy::UnsignedShort => "unsigned short ",
-                    PrimitiveTy::Int => "int ",
-                    PrimitiveTy::UnsignedInt => "unsigned int ",
-                    PrimitiveTy::Long => "long ",
-                    PrimitiveTy::UnsignedLong => "unsigned long ",
-                    PrimitiveTy::LongLong => "long long ",
-                    PrimitiveTy::UnsignedLongLong => "unsigned long long ",
-                    PrimitiveTy::Float => "float ",
-                    PrimitiveTy::Double => "double ",
-                    PrimitiveTy::LongDouble => "long double ",
+                    PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
+                        CArithmeticTy::Char => "char ",
+                        CArithmeticTy::SignedChar => "signed char ",
+                        CArithmeticTy::UnsignedChar => "unsigned char ",
+                        CArithmeticTy::Short => "short ",
+                        CArithmeticTy::UnsignedShort => "unsigned short ",
+                        CArithmeticTy::Int => "int ",
+                        CArithmeticTy::UnsignedInt => "unsigned int ",
+                        CArithmeticTy::Long => "long ",
+                        CArithmeticTy::UnsignedLong => "unsigned long ",
+                        CArithmeticTy::LongLong => "long long ",
+                        CArithmeticTy::UnsignedLongLong => "unsigned long long ",
+                        CArithmeticTy::Float => "float ",
+                        CArithmeticTy::Double => "double ",
+                        CArithmeticTy::LongDouble => "long double ",
+                    },
                 };
                 (name.to_owned(), None)
             }
@@ -276,41 +293,45 @@ impl CcToolchain {
             }
             Ty::Primitive(prim) => {
                 match prim {
-                    PrimitiveTy::I8
-                    | PrimitiveTy::I16
-                    | PrimitiveTy::I32
-                    | PrimitiveTy::I64
-                    | PrimitiveTy::I128
-                    | PrimitiveTy::I256
-                    | PrimitiveTy::U8
-                    | PrimitiveTy::U16
-                    | PrimitiveTy::U32
-                    | PrimitiveTy::U64
-                    | PrimitiveTy::U128
-                    | PrimitiveTy::U256
-                    | PrimitiveTy::F16
-                    | PrimitiveTy::F32
-                    | PrimitiveTy::F64
-                    | PrimitiveTy::F128
+                    PrimitiveTy::RustArithmeticTy(
+                        RustArithmeticTy::I8
+                        | RustArithmeticTy::I16
+                        | RustArithmeticTy::I32
+                        | RustArithmeticTy::I64
+                        | RustArithmeticTy::I128
+                        | RustArithmeticTy::I256
+                        | RustArithmeticTy::U8
+                        | RustArithmeticTy::U16
+                        | RustArithmeticTy::U32
+                        | RustArithmeticTy::U64
+                        | RustArithmeticTy::U128
+                        | RustArithmeticTy::U256
+                        | RustArithmeticTy::F16
+                        | RustArithmeticTy::F32
+                        | RustArithmeticTy::F64
+                        | RustArithmeticTy::F128,
+                    )
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
                         // Builtin
                     }
 
-                    PrimitiveTy::Char
-                    | PrimitiveTy::SignedChar
-                    | PrimitiveTy::UnsignedChar
-                    | PrimitiveTy::Short
-                    | PrimitiveTy::UnsignedShort
-                    | PrimitiveTy::Int
-                    | PrimitiveTy::UnsignedInt
-                    | PrimitiveTy::Long
-                    | PrimitiveTy::UnsignedLong
-                    | PrimitiveTy::LongLong
-                    | PrimitiveTy::UnsignedLongLong
-                    | PrimitiveTy::Float
-                    | PrimitiveTy::Double
-                    | PrimitiveTy::LongDouble => {
+                    PrimitiveTy::CArithmeticTy(
+                        CArithmeticTy::Char
+                        | CArithmeticTy::SignedChar
+                        | CArithmeticTy::UnsignedChar
+                        | CArithmeticTy::Short
+                        | CArithmeticTy::UnsignedShort
+                        | CArithmeticTy::Int
+                        | CArithmeticTy::UnsignedInt
+                        | CArithmeticTy::Long
+                        | CArithmeticTy::UnsignedLong
+                        | CArithmeticTy::LongLong
+                        | CArithmeticTy::UnsignedLongLong
+                        | CArithmeticTy::Float
+                        | CArithmeticTy::Double
+                        | CArithmeticTy::LongDouble,
+                    ) => {
                         // Builtin
                     }
                 };
@@ -420,41 +441,45 @@ impl CcToolchain {
             }
             Ty::Primitive(prim) => {
                 match prim {
-                    PrimitiveTy::I8
-                    | PrimitiveTy::I16
-                    | PrimitiveTy::I32
-                    | PrimitiveTy::I64
-                    | PrimitiveTy::I128
-                    | PrimitiveTy::I256
-                    | PrimitiveTy::U8
-                    | PrimitiveTy::U16
-                    | PrimitiveTy::U32
-                    | PrimitiveTy::U64
-                    | PrimitiveTy::U128
-                    | PrimitiveTy::U256
-                    | PrimitiveTy::F16
-                    | PrimitiveTy::F32
-                    | PrimitiveTy::F64
-                    | PrimitiveTy::F128
+                    PrimitiveTy::RustArithmeticTy(
+                        RustArithmeticTy::I8
+                        | RustArithmeticTy::I16
+                        | RustArithmeticTy::I32
+                        | RustArithmeticTy::I64
+                        | RustArithmeticTy::I128
+                        | RustArithmeticTy::I256
+                        | RustArithmeticTy::U8
+                        | RustArithmeticTy::U16
+                        | RustArithmeticTy::U32
+                        | RustArithmeticTy::U64
+                        | RustArithmeticTy::U128
+                        | RustArithmeticTy::U256
+                        | RustArithmeticTy::F16
+                        | RustArithmeticTy::F32
+                        | RustArithmeticTy::F64
+                        | RustArithmeticTy::F128,
+                    )
                     | PrimitiveTy::Bool
                     | PrimitiveTy::Ptr => {
                         // Builtin
                     }
 
-                    PrimitiveTy::Char
-                    | PrimitiveTy::SignedChar
-                    | PrimitiveTy::UnsignedChar
-                    | PrimitiveTy::Short
-                    | PrimitiveTy::UnsignedShort
-                    | PrimitiveTy::Int
-                    | PrimitiveTy::UnsignedInt
-                    | PrimitiveTy::Long
-                    | PrimitiveTy::UnsignedLong
-                    | PrimitiveTy::LongLong
-                    | PrimitiveTy::UnsignedLongLong
-                    | PrimitiveTy::Float
-                    | PrimitiveTy::Double
-                    | PrimitiveTy::LongDouble => {
+                    PrimitiveTy::CArithmeticTy(
+                        CArithmeticTy::Char
+                        | CArithmeticTy::SignedChar
+                        | CArithmeticTy::UnsignedChar
+                        | CArithmeticTy::Short
+                        | CArithmeticTy::UnsignedShort
+                        | CArithmeticTy::Int
+                        | CArithmeticTy::UnsignedInt
+                        | CArithmeticTy::Long
+                        | CArithmeticTy::UnsignedLong
+                        | CArithmeticTy::LongLong
+                        | CArithmeticTy::UnsignedLongLong
+                        | CArithmeticTy::Float
+                        | CArithmeticTy::Double
+                        | CArithmeticTy::LongDouble,
+                    ) => {
                         // Builtin
                     }
                 };

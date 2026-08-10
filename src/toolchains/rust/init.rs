@@ -1,6 +1,8 @@
 use super::*;
 use crate::harness::vals::*;
-use kdl_script::types::{AliasTy, ArrayTy, PrimitiveTy, RefTy, Ty, TyIdx};
+use kdl_script::types::{
+    AliasTy, ArrayTy, CArithmeticTy, PrimitiveTy, RefTy, RustArithmeticTy, Ty, TyIdx,
+};
 use std::fmt::Write;
 
 impl RustcToolchain {
@@ -15,19 +17,31 @@ impl RustcToolchain {
         match state.types.realize_ty(ty) {
             // Primitives are the only "real" values with actual bytes that advance val_idx
             Ty::Primitive(prim) => match prim {
-                PrimitiveTy::I8 => write!(f, "{}i8", val.generate_i8())?,
-                PrimitiveTy::I16 => write!(f, "{}i16", val.generate_i16())?,
-                PrimitiveTy::I32 => write!(f, "{}i32", val.generate_i32())?,
-                PrimitiveTy::I64 => write!(f, "{}i64", val.generate_i64())?,
-                PrimitiveTy::I128 => write!(f, "{}i128", val.generate_i128())?,
-                PrimitiveTy::U8 => write!(f, "{}u8", val.generate_u8())?,
-                PrimitiveTy::U16 => write!(f, "{}u16", val.generate_u16())?,
-                PrimitiveTy::U32 => write!(f, "{}u32", val.generate_u32())?,
-                PrimitiveTy::U64 => write!(f, "{}u64", val.generate_u64())?,
-                PrimitiveTy::U128 => write!(f, "{}u128", val.generate_u128())?,
+                PrimitiveTy::RustArithmeticTy(rust_arith_ty) => match rust_arith_ty {
+                    RustArithmeticTy::I8 => write!(f, "{}i8", val.generate_i8())?,
+                    RustArithmeticTy::I16 => write!(f, "{}i16", val.generate_i16())?,
+                    RustArithmeticTy::I32 => write!(f, "{}i32", val.generate_i32())?,
+                    RustArithmeticTy::I64 => write!(f, "{}i64", val.generate_i64())?,
+                    RustArithmeticTy::I128 => write!(f, "{}i128", val.generate_i128())?,
+                    RustArithmeticTy::U8 => write!(f, "{}u8", val.generate_u8())?,
+                    RustArithmeticTy::U16 => write!(f, "{}u16", val.generate_u16())?,
+                    RustArithmeticTy::U32 => write!(f, "{}u32", val.generate_u32())?,
+                    RustArithmeticTy::U64 => write!(f, "{}u64", val.generate_u64())?,
+                    RustArithmeticTy::U128 => write!(f, "{}u128", val.generate_u128())?,
 
-                PrimitiveTy::F32 => write!(f, "f32::from_bits({})", val.generate_u32())?,
-                PrimitiveTy::F64 => write!(f, "f64::from_bits({})", val.generate_u64())?,
+                    RustArithmeticTy::F32 => write!(f, "f32::from_bits({})", val.generate_u32())?,
+                    RustArithmeticTy::F64 => write!(f, "f64::from_bits({})", val.generate_u64())?,
+                    RustArithmeticTy::I256 => {
+                        Err(UnsupportedError::Other("rust doesn't have i256".to_owned()))?
+                    }
+                    RustArithmeticTy::U256 => {
+                        Err(UnsupportedError::Other("rust doesn't have u256".to_owned()))?
+                    }
+                    RustArithmeticTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
+                    RustArithmeticTy::F128 => {
+                        write!(f, "f128::from_bits({})", val.generate_u128())?
+                    }
+                },
                 PrimitiveTy::Bool => write!(f, "{}", val.generate_bool())?,
                 PrimitiveTy::Ptr => {
                     if true {
@@ -36,60 +50,60 @@ impl RustcToolchain {
                         write!(f, "{:#X}u32 as *mut ()", val.generate_u32())?
                     }
                 }
-                PrimitiveTy::I256 => {
-                    Err(UnsupportedError::Other("rust doesn't have i256".to_owned()))?
-                }
-                PrimitiveTy::U256 => {
-                    Err(UnsupportedError::Other("rust doesn't have u256".to_owned()))?
-                }
-                PrimitiveTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
-                PrimitiveTy::F128 => write!(f, "f128::from_bits({})", val.generate_u128())?,
 
-                // Use an as-cast to truncate the value if it is too big for the target.
-                PrimitiveTy::Char => write!(f, "({}u8 as core::ffi::c_char)", val.generate_u8())?,
-                PrimitiveTy::SignedChar => {
-                    write!(f, "({}u8 as core::ffi::c_schar)", val.generate_u8())?
-                }
-                PrimitiveTy::UnsignedChar => {
-                    write!(f, "({}u8 as core::ffi::c_uchar)", val.generate_u8())?
-                }
-                PrimitiveTy::Short => {
-                    write!(f, "({}u16 as core::ffi::c_short)", val.generate_u16())?
-                }
-                PrimitiveTy::UnsignedShort => {
-                    write!(f, "({}u16 as core::ffi::c_ushort)", val.generate_u16())?
-                }
-                PrimitiveTy::Int => write!(f, "({}u32 as core::ffi::c_int)", val.generate_u32())?,
-                PrimitiveTy::UnsignedInt => {
-                    write!(f, "({}u32 as core::ffi::c_uint)", val.generate_u32())?
-                }
-                PrimitiveTy::Long => write!(f, "({}u64 as core::ffi::c_long)", val.generate_u64())?,
-                PrimitiveTy::UnsignedLong => {
-                    write!(f, "({}u64 as core::ffi::c_ulong)", val.generate_u64())?
-                }
-                PrimitiveTy::LongLong => {
-                    write!(f, "({}u64 as core::ffi::c_longlong)", val.generate_u64())?
-                }
-                PrimitiveTy::UnsignedLongLong => {
-                    write!(f, "({}u64 as core::ffi::c_ulonglong)", val.generate_u64())?
-                }
-
-                PrimitiveTy::Float => {
-                    write!(f, "core::ffi::c_float::from_bits({})", val.generate_u32())?
-                }
-                PrimitiveTy::Double => {
-                    if self.platform_info.target.target_arch == platforms::Arch::Avr {
-                        write!(f, "core::ffi::c_double::from_bits({})", val.generate_u32())?
-                    } else {
-                        write!(f, "core::ffi::c_double::from_bits({})", val.generate_u64())?
+                PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
+                    // Use an as-cast to truncate the value if it is too big for the target.
+                    CArithmeticTy::Char => {
+                        write!(f, "({}u8 as core::ffi::c_char)", val.generate_u8())?
                     }
-                }
-                PrimitiveTy::LongDouble => {
-                    // FIXME: use core::ffi::c_longdouble once it exists.
-                    return Err(UnsupportedError::Other(
-                        "rust doesn't have c_longdouble".to_owned(),
-                    ))?;
-                }
+                    CArithmeticTy::SignedChar => {
+                        write!(f, "({}u8 as core::ffi::c_schar)", val.generate_u8())?
+                    }
+                    CArithmeticTy::UnsignedChar => {
+                        write!(f, "({}u8 as core::ffi::c_uchar)", val.generate_u8())?
+                    }
+                    CArithmeticTy::Short => {
+                        write!(f, "({}u16 as core::ffi::c_short)", val.generate_u16())?
+                    }
+                    CArithmeticTy::UnsignedShort => {
+                        write!(f, "({}u16 as core::ffi::c_ushort)", val.generate_u16())?
+                    }
+                    CArithmeticTy::Int => {
+                        write!(f, "({}u32 as core::ffi::c_int)", val.generate_u32())?
+                    }
+                    CArithmeticTy::UnsignedInt => {
+                        write!(f, "({}u32 as core::ffi::c_uint)", val.generate_u32())?
+                    }
+                    CArithmeticTy::Long => {
+                        write!(f, "({}u64 as core::ffi::c_long)", val.generate_u64())?
+                    }
+                    CArithmeticTy::UnsignedLong => {
+                        write!(f, "({}u64 as core::ffi::c_ulong)", val.generate_u64())?
+                    }
+                    CArithmeticTy::LongLong => {
+                        write!(f, "({}u64 as core::ffi::c_longlong)", val.generate_u64())?
+                    }
+                    CArithmeticTy::UnsignedLongLong => {
+                        write!(f, "({}u64 as core::ffi::c_ulonglong)", val.generate_u64())?
+                    }
+
+                    CArithmeticTy::Float => {
+                        write!(f, "core::ffi::c_float::from_bits({})", val.generate_u32())?
+                    }
+                    CArithmeticTy::Double => {
+                        if self.platform_info.target.target_arch == platforms::Arch::Avr {
+                            write!(f, "core::ffi::c_double::from_bits({})", val.generate_u32())?
+                        } else {
+                            write!(f, "core::ffi::c_double::from_bits({})", val.generate_u64())?
+                        }
+                    }
+                    CArithmeticTy::LongDouble => {
+                        // FIXME: use core::ffi::c_longdouble once it exists.
+                        return Err(UnsupportedError::Other(
+                            "rust doesn't have c_longdouble".to_owned(),
+                        ))?;
+                    }
+                },
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);
