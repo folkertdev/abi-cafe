@@ -54,6 +54,41 @@ impl RustcToolchain {
                     }
                 }
 
+                PrimitiveTy::Complex(c_arith_ty) => {
+                    let (re, im) = val.generate_complex();
+                    let ints = |base: &str| {
+                        (
+                            format!("{re:#X}u128 as {base}"),
+                            format!("{im:#X}u128 as {base}"),
+                        )
+                    };
+                    let (re, im) = match c_arith_ty {
+                        CArithmeticTy::Float => (
+                            format!("f32::from_bits({}u32)", re as u32),
+                            format!("f32::from_bits({}u32)", im as u32),
+                        ),
+                        CArithmeticTy::Double => (
+                            format!("f64::from_bits({}u64)", re as u64),
+                            format!("f64::from_bits({}u64)", im as u64),
+                        ),
+                        CArithmeticTy::Char => ints("core::ffi::c_char"),
+                        CArithmeticTy::SignedChar => ints("core::ffi::c_schar"),
+                        CArithmeticTy::UnsignedChar => ints("core::ffi::c_uchar"),
+                        CArithmeticTy::Short => ints("core::ffi::c_short"),
+                        CArithmeticTy::UnsignedShort => ints("core::ffi::c_ushort"),
+                        CArithmeticTy::Int => ints("core::ffi::c_int"),
+                        CArithmeticTy::UnsignedInt => ints("core::ffi::c_uint"),
+                        CArithmeticTy::Long => ints("core::ffi::c_long"),
+                        CArithmeticTy::UnsignedLong => ints("core::ffi::c_ulong"),
+                        CArithmeticTy::LongLong => ints("core::ffi::c_longlong"),
+                        CArithmeticTy::UnsignedLongLong => ints("core::ffi::c_ulonglong"),
+                        CArithmeticTy::LongDouble => Err(UnsupportedError::Other(
+                            "rust doesn't have c_longdouble".to_owned(),
+                        ))?,
+                    };
+                    write!(f, "core::num::Complex::new({re}, {im})")?
+                }
+
                 PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
                     // Use an as-cast to truncate the value if it is too big for the target.
                     CArithmeticTy::Char => {

@@ -58,18 +58,16 @@ impl CcToolchain {
 
                     RustArithmeticTy::F32 => {
                         let val = f32::from_bits(val.generate_u32());
-                        if val.fract() == 0.0 {
-                            write!(f, "{val}.0f")?
-                        } else {
-                            write!(f, "{val}f")?
+                        match val.fract() {
+                            0.0 => write!(f, "{val}.0f")?,
+                            _ => write!(f, "{val}f")?,
                         }
                     }
                     RustArithmeticTy::F64 => {
                         let val = f64::from_bits(val.generate_u64());
-                        if val.fract() == 0.0 {
-                            write!(f, "{val}.0")?
-                        } else {
-                            write!(f, "{val}")?
+                        match val.fract() {
+                            0.0 => write!(f, "{val}.0")?,
+                            _ => write!(f, "{val}")?,
                         }
                     }
                     RustArithmeticTy::I256 => {
@@ -174,6 +172,51 @@ impl CcToolchain {
                     )?
                     }
                 },
+
+                PrimitiveTy::Complex(c_arith_ty) => {
+                    let (re, im) = val.generate_complex();
+                    let base = match c_arith_ty {
+                        CArithmeticTy::Float => {
+                            let lit = |bits: u32| {
+                                let val = f32::from_bits(bits);
+                                match val.fract() {
+                                    0.0 => format!("{val}.0f"),
+                                    _ => format!("{val}f"),
+                                }
+                            };
+                            let (re, im) = (lit(re as u32), lit(im as u32));
+                            return Ok(write!(f, "({re} + {im}i)")?);
+                        }
+                        CArithmeticTy::Double | CArithmeticTy::LongDouble => {
+                            let suffix = match c_arith_ty {
+                                CArithmeticTy::LongDouble => "L",
+                                _ => "",
+                            };
+                            let lit = |bits: u64| {
+                                let val = f64::from_bits(bits);
+                                match val.fract() {
+                                    0.0 => format!("{val}.0{suffix}"),
+                                    _ => format!("{val}{suffix}"),
+                                }
+                            };
+                            let (re, im) = (lit(re as u64), lit(im as u64));
+                            return Ok(write!(f, "({re} + {im}i)")?);
+                        }
+                        CArithmeticTy::Char => "char",
+                        CArithmeticTy::SignedChar => "signed char",
+                        CArithmeticTy::UnsignedChar => "unsigned char",
+                        CArithmeticTy::Short => "short",
+                        CArithmeticTy::UnsignedShort => "unsigned short",
+                        CArithmeticTy::Int => "int",
+                        CArithmeticTy::UnsignedInt => "unsigned int",
+                        CArithmeticTy::Long => "long",
+                        CArithmeticTy::UnsignedLong => "unsigned long",
+                        CArithmeticTy::LongLong => "long long",
+                        CArithmeticTy::UnsignedLongLong => "unsigned long long",
+                    };
+                    let (re, im) = (re as u64, im as u64);
+                    write!(f, "(_Complex {base})({re:#X}ull + {im:#X}ulli)")?
+                }
             },
             Ty::Enum(enum_ty) => {
                 let name = alias.unwrap_or(&enum_ty.name);

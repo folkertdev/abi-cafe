@@ -19,6 +19,7 @@ impl RustcToolchain {
         }
         let mut has_f16 = false;
         let mut has_f128 = false;
+        let mut has_complex = false;
         for def in state.defs.definitions(state.desired_funcs.iter().copied()) {
             match def {
                 kdl_script::Definition::DeclareTy(ty) | kdl_script::Definition::DefineTy(ty) => {
@@ -29,6 +30,7 @@ impl RustcToolchain {
                         Ty::Primitive(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)) => {
                             has_f128 = true
                         }
+                        Ty::Primitive(PrimitiveTy::Complex(_)) => has_complex = true,
                         _ => {}
                     }
                 }
@@ -40,6 +42,9 @@ impl RustcToolchain {
         }
         if has_f128 {
             writeln!(f, "#![feature(f128)]")?;
+        }
+        if has_complex {
+            writeln!(f, "#![feature(complex_numbers)]")?;
         }
         // Load test harness "headers"
         writeln!(

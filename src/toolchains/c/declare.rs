@@ -236,6 +236,28 @@ impl CcToolchain {
                         CArithmeticTy::Double => "double ",
                         CArithmeticTy::LongDouble => "long double ",
                     },
+
+                    PrimitiveTy::Complex(c_arith_ty) => match &self.cc_flavor {
+                        CCFlavor::Msvc => Err(UnsupportedError::Other(
+                            "MSVC doesn't support _Complex".to_owned(),
+                        ))?,
+                        CCFlavor::Gcc | CCFlavor::Clang | CCFlavor::Zigcc => match c_arith_ty {
+                            CArithmeticTy::Char => "_Complex char ",
+                            CArithmeticTy::SignedChar => "_Complex signed char ",
+                            CArithmeticTy::UnsignedChar => "_Complex unsigned char ",
+                            CArithmeticTy::Short => "_Complex short ",
+                            CArithmeticTy::UnsignedShort => "_Complex unsigned short ",
+                            CArithmeticTy::Int => "_Complex int ",
+                            CArithmeticTy::UnsignedInt => "_Complex unsigned int ",
+                            CArithmeticTy::Long => "_Complex long ",
+                            CArithmeticTy::UnsignedLong => "_Complex unsigned long ",
+                            CArithmeticTy::LongLong => "_Complex long long ",
+                            CArithmeticTy::UnsignedLongLong => "_Complex unsigned long long ",
+                            CArithmeticTy::Float => "_Complex float ",
+                            CArithmeticTy::Double => "_Complex double ",
+                            CArithmeticTy::LongDouble => "_Complex long double ",
+                        },
+                    },
                 };
                 (name.to_owned(), None)
             }
@@ -361,7 +383,8 @@ impl CcToolchain {
                         | CArithmeticTy::Float
                         | CArithmeticTy::Double
                         | CArithmeticTy::LongDouble,
-                    ) => {
+                    )
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };
@@ -510,7 +533,8 @@ impl CcToolchain {
                         | CArithmeticTy::Float
                         | CArithmeticTy::Double
                         | CArithmeticTy::LongDouble,
-                    ) => {
+                    )
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };

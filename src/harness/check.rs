@@ -1,8 +1,13 @@
 use console::Style;
 use harness::run::{FuncBuffer, ValBuffer};
+use kdl_script::types::CArithmeticTy;
 use kdl_script::types::PrimitiveTy;
 use kdl_script::types::Ty;
+use kdl_script::types::TyIdx;
+use kdl_script::types::TypedProgram;
+use platforms::Arch;
 use platforms::Endian;
+use platforms::Env;
 use tracing::{error, info};
 
 use crate::error::*;
@@ -118,6 +123,42 @@ impl TestHarness {
         }
     }
 
+    fn has_x87_long_double(&self) -> bool {
+        let target = self.toolchains.platform_info.target;
+        match target.target_arch {
+            Arch::X86 | Arch::X86_64 => !matches!(target.target_env, Env::Msvc),
+            _ => false,
+        }
+    }
+
+    /// Are the bytes equal modulo padding?
+    fn bytes_agree(&self, types: &TypedProgram, ty: TyIdx, caller: &[u8], callee: &[u8]) -> bool {
+        if !self.has_x87_long_double() {
+            return caller == callee;
+        }
+
+        if caller.len() != callee.len() {
+            return false;
+        }
+
+        match types.realize_ty(ty) {
+            Ty::Primitive(PrimitiveTy::CArithmeticTy(CArithmeticTy::LongDouble)) => {
+                caller[..10] == callee[..10]
+            }
+            Ty::Primitive(PrimitiveTy::Complex(CArithmeticTy::LongDouble)) => {
+                let width = match self.toolchains.platform_info.target.target_arch {
+                    Arch::X86 => 12,
+                    Arch::X86_64 => 16,
+                    _ => unreachable!(),
+                };
+
+                caller[..10] == callee[..10] && caller[width..][..10] == callee[width..][..10]
+            }
+
+            _ => caller == callee,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_val(
         &self,
@@ -168,7 +209,7 @@ impl TestHarness {
                 let callee = bool_variant_name(expected_tag, callee_tag);
                 return Err(tag_error(types, &expected_val, expected, caller, callee));
             }
-        } else if caller_val.bytes != callee_val.bytes {
+        } else if !self.bytes_agree(types, expected_val.ty, &caller_val.bytes, &callee_val.bytes) {
             // General case, just get a pile of bytes to span both values
             let func = expected_val.func();
             let arg = expected_val.arg();

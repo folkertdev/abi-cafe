@@ -498,4 +498,17 @@ impl ValueGenerator {
     pub fn generate_i128(&self) -> i128 {
         self.generate_u128() as i128
     }
+    pub fn generate_complex(&self) -> (u128, u128) {
+        // The graffiti generator wraps every 16 bytes, so change the seed
+        // in a deterministic way to get a different second u128.
+        let imaginary = match self {
+            ValueGenerator::Graffiti { idx } => ValueGenerator::Graffiti {
+                idx: idx.wrapping_add(1),
+            },
+            ValueGenerator::Random { seed } => ValueGenerator::Random {
+                seed: seed.wrapping_add(1),
+            },
+        };
+        (self.generate_u128(), imaginary.generate_u128())
+    }
 }
