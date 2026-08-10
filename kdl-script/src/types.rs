@@ -169,14 +169,16 @@ pub struct Arg {
 /// A primitive
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveTy {
-    /// A Rust arithmetic type like `i32` or `f64`.
-    RustArithmeticTy(RustArithmeticTy),
-    /// A C arithmetic type like `int` or `double`.
-    CArithmeticTy(CArithmeticTy),
     /// `bool`
     Bool,
     /// An opaque pointer (like `void*`)
     Ptr,
+    /// A Rust arithmetic type like `i32` or `f64`.
+    RustArithmeticTy(RustArithmeticTy),
+    /// A C arithmetic type like `int` or `double`.
+    CArithmeticTy(CArithmeticTy),
+    /// A C `_Complex T` type.
+    Complex(CArithmeticTy),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -251,6 +253,10 @@ pub enum CArithmeticTy {
 
 #[rustfmt::skip]
 pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
+    ("bool", PrimitiveTy::Bool),
+    ("ptr", PrimitiveTy::Ptr),
+
+    // Rust arithmetic types
     ("i8", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I8)),
     ("i16", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I16)),
     ("i32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::I32)),
@@ -268,8 +274,7 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("f32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F32)),
     ("f64", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F64)),
     ("f128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)),
-    ("bool", PrimitiveTy::Bool),
-    ("ptr", PrimitiveTy::Ptr),
+
     // C arithmetic types
     ("c_char", PrimitiveTy::CArithmeticTy(CArithmeticTy::Char)),
     ("c_schar", PrimitiveTy::CArithmeticTy(CArithmeticTy::SignedChar)),
@@ -285,6 +290,24 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("c_float", PrimitiveTy::CArithmeticTy(CArithmeticTy::Float)),
     ("c_double", PrimitiveTy::CArithmeticTy(CArithmeticTy::Double)),
     ("c_longdouble", PrimitiveTy::CArithmeticTy(CArithmeticTy::LongDouble)),
+
+    // C Complex floats
+    ("Complex_c_float", PrimitiveTy::Complex(CArithmeticTy::Float)),
+    ("Complex_c_double", PrimitiveTy::Complex(CArithmeticTy::Double)),
+    ("Complex_c_longdouble", PrimitiveTy::Complex(CArithmeticTy::LongDouble)),
+
+    // C Complex integers (a GNU extension)
+    ("Complex_c_char", PrimitiveTy::Complex(CArithmeticTy::Char)),
+    ("Complex_c_schar", PrimitiveTy::Complex(CArithmeticTy::SignedChar)),
+    ("Complex_c_uchar", PrimitiveTy::Complex(CArithmeticTy::UnsignedChar)),
+    ("Complex_c_short", PrimitiveTy::Complex(CArithmeticTy::Short)),
+    ("Complex_c_ushort", PrimitiveTy::Complex(CArithmeticTy::UnsignedShort)),
+    ("Complex_c_int", PrimitiveTy::Complex(CArithmeticTy::Int)),
+    ("Complex_c_uint", PrimitiveTy::Complex(CArithmeticTy::UnsignedInt)),
+    ("Complex_c_long", PrimitiveTy::Complex(CArithmeticTy::Long)),
+    ("Complex_c_ulong", PrimitiveTy::Complex(CArithmeticTy::UnsignedLong)),
+    ("Complex_c_longlong", PrimitiveTy::Complex(CArithmeticTy::LongLong)),
+    ("Complex_c_ulonglong", PrimitiveTy::Complex(CArithmeticTy::UnsignedLongLong)),
 ];
 
 impl std::fmt::Display for PrimitiveTy {

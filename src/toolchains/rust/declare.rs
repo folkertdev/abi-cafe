@@ -111,6 +111,39 @@ impl RustcToolchain {
                         }
                     },
 
+                    PrimitiveTy::Complex(c_arith_ty) => {
+                        if !self.is_nightly {
+                            return Err(UnsupportedError::Other(
+                                "complex is an unstable rust feature, requires nightly".to_owned(),
+                            ))?;
+                        }
+
+                        match c_arith_ty {
+                            CArithmeticTy::Char => "core::num::Complex<core::ffi::c_char>",
+                            CArithmeticTy::SignedChar => "core::num::Complex<core::ffi::c_schar>",
+                            CArithmeticTy::UnsignedChar => "core::num::Complex<core::ffi::c_uchar>",
+                            CArithmeticTy::Short => "core::num::Complex<core::ffi::c_short>",
+                            CArithmeticTy::UnsignedShort => {
+                                "core::num::Complex<core::ffi::c_ushort>"
+                            }
+                            CArithmeticTy::Int => "core::num::Complex<core::ffi::c_int>",
+                            CArithmeticTy::UnsignedInt => "core::num::Complex<core::ffi::c_uint>",
+                            CArithmeticTy::Long => "core::num::Complex<core::ffi::c_long>",
+                            CArithmeticTy::UnsignedLong => "core::num::Complex<core::ffi::c_ulong>",
+                            CArithmeticTy::LongLong => "core::num::Complex<core::ffi::c_longlong>",
+                            CArithmeticTy::UnsignedLongLong => {
+                                "core::num::Complex<core::ffi::c_ulonglong>"
+                            }
+                            CArithmeticTy::Float => "core::num::Complex<core::ffi::c_float>",
+                            CArithmeticTy::Double => "core::num::Complex<core::ffi::c_double>",
+                            CArithmeticTy::LongDouble => {
+                                return Err(UnsupportedError::Other(
+                                    "rust doesn't have c_longdouble".to_owned(),
+                                ))?;
+                            }
+                        }
+                    }
+
                     PrimitiveTy::CArithmeticTy(c_arith_ty) => match c_arith_ty {
                         CArithmeticTy::Char => "core::ffi::c_char",
                         CArithmeticTy::SignedChar => "core::ffi::c_schar",
@@ -349,7 +382,8 @@ impl RustcToolchain {
                         | CArithmeticTy::Float
                         | CArithmeticTy::Double
                         | CArithmeticTy::LongDouble,
-                    ) => {
+                    )
+                    | PrimitiveTy::Complex(_) => {
                         // Builtin
                     }
                 };
@@ -441,7 +475,8 @@ impl RustcToolchain {
                                     | CArithmeticTy::Float
                                     | CArithmeticTy::Double
                                     | CArithmeticTy::LongDouble,
-                                ) => {
+                                )
+                                | PrimitiveTy::Complex(_) => {
                                     return Err(UnsupportedError::Other(format!(
                                         "unsupport repr({prim:?})"
                                     )))?;
