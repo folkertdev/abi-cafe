@@ -6,6 +6,9 @@ use crate::harness::test::*;
 use crate::{error::*, SortedMap};
 
 use camino::{Utf8Path, Utf8PathBuf};
+use kdl_script::types::{
+    CArithmeticTy, Func, PrimitiveTy, RustArithmeticTy, Ty, TyIdx, TypedProgram,
+};
 use kdl_script::PunEnv;
 
 pub mod c;
@@ -28,6 +31,103 @@ const C_TOOLCHAINS: &[CCMode] = &[
     CCMode::Msvc,
     CCMode::Zigcc,
 ];
+
+/// Can this type be passed as a c-variadic argument?
+///
+/// Small arithmetic types in C are subject to the "default argument promotions",
+/// and cannot be read from a va_list.
+pub fn is_va_arg_safe(prim: PrimitiveTy) -> bool {
+    match prim {
+        PrimitiveTy::Ptr => true,
+        PrimitiveTy::Bool => false,
+        PrimitiveTy::RustArithmeticTy(prim) => match prim {
+            RustArithmeticTy::I32
+            | RustArithmeticTy::I64
+            | RustArithmeticTy::I128
+            | RustArithmeticTy::U32
+            | RustArithmeticTy::U64
+            | RustArithmeticTy::U128
+            | RustArithmeticTy::F64 => true,
+            // Subject to default argument promotions.
+            RustArithmeticTy::I8
+            | RustArithmeticTy::I16
+            | RustArithmeticTy::U8
+            | RustArithmeticTy::U16
+            | RustArithmeticTy::F16
+            | RustArithmeticTy::F32 => false,
+            // Future work.
+            RustArithmeticTy::F128 => false,
+            RustArithmeticTy::F16b => false,
+            // Not supported.
+            RustArithmeticTy::I256 | RustArithmeticTy::U256 => false,
+        },
+        PrimitiveTy::CArithmeticTy(prim) => match prim {
+            CArithmeticTy::Int
+            | CArithmeticTy::UnsignedInt
+            | CArithmeticTy::Long
+            | CArithmeticTy::UnsignedLong
+            | CArithmeticTy::LongLong
+            | CArithmeticTy::UnsignedLongLong
+            | CArithmeticTy::Double
+            | CArithmeticTy::LongDouble => true,
+            // Subject to default argument promotions.
+            CArithmeticTy::Char
+            | CArithmeticTy::SignedChar
+            | CArithmeticTy::UnsignedChar
+            | CArithmeticTy::Short
+            | CArithmeticTy::UnsignedShort
+            | CArithmeticTy::Float => false,
+        },
+        PrimitiveTy::Complex(_) => true,
+    }
+}
+
+pub fn variadic_arg_prim(types: &TypedProgram, env: &PunEnv, ty: TyIdx) -> Option<PrimitiveTy> {
+    match types.realize_ty(ty) {
+        Ty::Primitive(prim) => is_va_arg_safe(*prim).then_some(*prim),
+        Ty::Alias(alias_ty) => variadic_arg_prim(types, env, alias_ty.real),
+        Ty::Pun(pun) => {
+            let real_ty = types.resolve_pun(pun, env).unwrap();
+            variadic_arg_prim(types, env, real_ty)
+        }
+
+        // FIXME: not supported by Rust but C can generally handle this.
+        Ty::Struct(_) | Ty::Union(_) => None,
+
+        Ty::Enum(_) | Ty::Tagged(_) | Ty::Array(_) | Ty::Ref(_) | Ty::Empty => None,
+    }
+}
+
+/// Check a c-variadic signature.
+pub fn check_variadic(
+    types: &TypedProgram,
+    env: &PunEnv,
+    convention: CallingConvention,
+    function: &Func,
+) -> Result<(), GenerateError> {
+    if !matches!(convention, CallingConvention::C) {
+        Err(UnsupportedError::Other(format!(
+            "the {convention} convention can't be c-variadic"
+        )))?;
+    }
+
+    // C only allows this in C23.
+    if function.fixed_inputs().is_empty() {
+        Err(UnsupportedError::Other(
+            "a c-variadic function needs at least one fixed argument".to_owned(),
+        ))?;
+    }
+
+    for arg in function.variadic_inputs() {
+        if variadic_arg_prim(types, env, arg.ty).is_none() {
+            Err(UnsupportedError::Other(format!(
+                "{} can't be read from a variable argument list",
+                types.format_ty(arg.ty)
+            )))?;
+        }
+    }
+    Ok(())
+}
 
 /// A compiler/language toolchain!
 pub trait Toolchain {

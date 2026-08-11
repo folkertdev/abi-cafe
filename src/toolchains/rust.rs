@@ -21,6 +21,7 @@ use crate::vals::ArgValuesIter;
 const CALLER_VALS: &str = "CALLER_VALS";
 const CALLEE_VALS: &str = "CALLEE_VALS";
 const INDENT: &str = "    ";
+const VARARGS: &str = "varargs";
 
 pub struct TestState {
     pub inner: TestImpl,
@@ -297,7 +298,7 @@ impl RustcToolchain {
         let convention_decl = self.convention_decl(state.options.convention)?;
         writeln!(f, "#[no_mangle]")?;
         write!(f, "pub unsafe extern \"{convention_decl}\" ")?;
-        self.generate_signature(f, state, func)?;
+        self.generate_signature(f, state, func, CallSide::Callee)?;
         writeln!(f, " {{")?;
         f.add_indent(1);
         writeln!(f, "unsafe {{")?;
@@ -308,9 +309,18 @@ impl RustcToolchain {
 
         // Report the inputs
         let mut func_vals = state.vals.at_func(func);
-        for arg in &function.inputs {
+        for arg in function.fixed_inputs() {
             let arg_vals = func_vals.next_arg();
             let arg_name = &arg.name;
+            self.write_var(f, state, arg_name, arg.ty, arg_vals, CALLEE_VALS)?;
+        }
+
+        // Pull the varargs out of the va_list and report them too
+        for arg in function.variadic_inputs() {
+            let arg_vals = func_vals.next_arg();
+            let arg_name = &arg.name;
+            let arg_ty = &state.tynames[&arg.ty];
+            writeln!(f, "let {arg_name} = {VARARGS}.next_arg::<{arg_ty}>();")?;
             self.write_var(f, state, arg_name, arg.ty, arg_vals, CALLEE_VALS)?;
         }
 
@@ -398,6 +408,97 @@ impl RustcToolchain {
             codegen_backend,
             linker: system_info.linker.clone(),
             debug: system_info.debug,
+        }
+    }
+
+    /// Additional restrictions on c-variadic functions in Rust.
+    fn check_variadic(&self, state: &TestState, function: &Func) -> Result<(), GenerateError> {
+        crate::toolchains::check_variadic(
+            &state.types,
+            &state.env,
+            state.options.convention,
+            function,
+        )?;
+
+        // FIXME: C-variadic definitons will be stable on rust 1.99.0
+        if !self.is_nightly {
+            Err(UnsupportedError::Other(
+                "c-variadic definitions are not yet available on stable".to_owned(),
+            ))?;
+        }
+
+        // Rust only supports c-variadic `extern "C"` definitions for now.
+        let convention = state.options.convention;
+        if convention != CallingConvention::C {
+            Err(UnsupportedError::Other(format!(
+                "rust can only define c-variadic functions as extern \"C\", not {convention}"
+            )))?;
+        }
+
+        if self.has_variadic_int128(state, function) && !self.variadic_int128_supported() {
+            Err(UnsupportedError::Other(
+                "rust doesn't implement VaArgSafe for 128-bit integers on this target".to_owned(),
+            ))?;
+        }
+
+        if self.has_variadic_complex_number(state, function) {
+            Err(UnsupportedError::Other(
+                "rust doesn't implement VaArgSafe for complex numbers yet".to_owned(),
+            ))?;
+        }
+
+        Ok(())
+    }
+
+    /// Does this function pass a 128-bit integer as a c-variadic argument?
+    ///
+    /// Doing so requires `#![feature(c_variadic_int128)]`.
+    pub fn has_variadic_int128(&self, state: &TestState, function: &Func) -> bool {
+        function.variadic_inputs().iter().any(|arg| {
+            matches!(
+                variadic_arg_prim(&state.types, &state.env, arg.ty),
+                Some(PrimitiveTy::RustArithmeticTy(
+                    RustArithmeticTy::I128 | RustArithmeticTy::U128
+                ))
+            )
+        })
+    }
+
+    /// Does this function pass a complex number as a c-variadic argument?
+    pub fn has_variadic_complex_number(&self, state: &TestState, function: &Func) -> bool {
+        function.variadic_inputs().iter().any(|arg| {
+            matches!(
+                variadic_arg_prim(&state.types, &state.env, arg.ty),
+                Some(PrimitiveTy::Complex(_))
+            )
+        })
+    }
+
+    /// Are 128-bit c-varargs implemented for this target?
+    ///
+    /// This mirrors the `VaArgSafe` impls in core, which in turn follows the
+    /// targets where clang defines `__int128`.
+    fn variadic_int128_supported(&self) -> bool {
+        use platforms::{Arch, PointerWidth};
+
+        let target = self.platform_info.target;
+        let is_64bit = target.target_pointer_width == PointerWidth::U64;
+        match target.target_arch {
+            Arch::X86_64 | Arch::Wasm32 => true,
+            Arch::AArch64
+            | Arch::Amdgpu
+            | Arch::Arm64ec
+            | Arch::Bpf
+            | Arch::Loongarch64
+            | Arch::Mips64
+            | Arch::Mips64r6
+            | Arch::Nvptx64
+            | Arch::PowerPc64
+            | Arch::Riscv64
+            | Arch::S390X
+            | Arch::Sparc64
+            | Arch::Wasm64 => is_64bit,
+            _ => false,
         }
     }
 

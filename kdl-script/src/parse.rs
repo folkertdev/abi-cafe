@@ -388,6 +388,8 @@ pub struct FuncDecl {
     pub name: Ident,
     pub inputs: Vec<TypedVar>,
     pub outputs: Vec<TypedVar>,
+    /// Index of the first c-variadic argument, if this is a c-variadic function
+    pub varargs: Option<usize>,
     pub attrs: Vec<Attr>,
     #[cfg(feature = "eval")]
     pub body: Vec<Stmt>,
@@ -683,6 +685,7 @@ impl Parser<'_> {
         let name = self.one_string(node, "function name")?;
         let name = self.ident(name)?;
         let mut inputs = vec![];
+        let mut varargs = None;
         let mut outputs = vec![];
         #[cfg(feature = "eval")]
         let mut body = vec![];
@@ -719,7 +722,7 @@ impl Parser<'_> {
                         })?;
                     }
                     self.no_args(stmt)?;
-                    inputs = self.typed_var_children(stmt)?;
+                    (inputs, varargs) = self.func_input_children(stmt)?;
                     input_span = Some(*stmt.name().span());
                     continue;
                 }
@@ -793,6 +796,7 @@ impl Parser<'_> {
             name,
             inputs,
             outputs,
+            varargs,
             #[cfg(feature = "eval")]
             body,
             attrs,
@@ -971,6 +975,45 @@ impl Parser<'_> {
             })?;
         }
         Ok(())
+    }
+
+    fn func_input_children(&mut self, node: &KdlNode) -> Result<(Vec<TypedVar>, Option<usize>)> {
+        let mut inputs = vec![];
+        let mut varargs = None;
+        for var in node.children().into_iter().flat_map(|d| d.nodes()) {
+            let name = self.var_name_decl(var)?;
+            let ty_str = self.one_string(var, "type")?;
+            self.no_children(var)?;
+
+            if *ty_str == "..." {
+                if name.is_some() {
+                    return Err(KdlScriptParseError {
+                        message: "the variable argument list `...` can't have a name".to_string(),
+                        src: self.src.clone(),
+                        span: *var.name().span(),
+                        help: Some(r#"write it as `_ "..."`"#.to_string()),
+                    })?;
+                }
+                if varargs.is_some() {
+                    return Err(KdlScriptParseError {
+                        message: "duplicate variable argument list `...`".to_string(),
+                        src: self.src.clone(),
+                        span: Spanned::span(&ty_str),
+                        help: Some(
+                            "a function only has one varargs list, and everything after \
+                             the marker is already part of it"
+                                .to_string(),
+                        ),
+                    })?;
+                }
+                varargs = Some(inputs.len());
+                continue;
+            }
+
+            let ty = self.tydent(&ty_str)?;
+            inputs.push(TypedVar { name, ty });
+        }
+        Ok((inputs, varargs))
     }
 
     /// This node's children should be TypedVars
@@ -1509,6 +1552,7 @@ mod runnable {
                         name: Some(Ident::from(String::from("out"))),
                         ty: Spanned::from(Tydent::Name(Ident::from(String::from("i64")))),
                     }],
+                    varargs: None,
                     attrs: vec![],
 
                     body: vec![],

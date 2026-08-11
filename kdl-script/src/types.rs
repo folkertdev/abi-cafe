@@ -150,11 +150,30 @@ pub struct Func {
     pub inputs: Vec<Arg>,
     /// The function's outputs (note that outparams will appear as Ty::Ref outputs!)
     pub outputs: Vec<Arg>,
+    /// Index of the first c-variadic argument, if this is a c-variadic function
+    pub varargs: Option<usize>,
     /// Any attributes hanging off the function
     pub attrs: Vec<Attr>,
     #[cfg(feature = "eval")]
     /// The body of the function (TBD, not needed for abi-cafe)
     pub body: (),
+}
+
+impl Func {
+    /// Is this a c-variadic function?
+    pub fn is_variadic(&self) -> bool {
+        self.varargs.is_some()
+    }
+
+    /// The inputs that are passed as "normal" arguments.
+    pub fn fixed_inputs(&self) -> &[Arg] {
+        &self.inputs[..self.varargs.unwrap_or(self.inputs.len())]
+    }
+
+    /// The inputs that are passed as c-varargs (if any).
+    pub fn variadic_inputs(&self) -> &[Arg] {
+        &self.inputs[self.varargs.unwrap_or(self.inputs.len())..]
+    }
 }
 
 /// A function argument (input or output).
@@ -585,6 +604,7 @@ pub fn typeck(comp: &mut Compiler, parsed: &ParsedProgram) -> Result<TypedProgra
                 name,
                 inputs,
                 outputs,
+                varargs: func_decl.varargs,
                 attrs,
                 body: (),
             })
