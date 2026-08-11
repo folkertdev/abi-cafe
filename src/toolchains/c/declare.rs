@@ -145,6 +145,33 @@ impl CcToolchain {
                                 "MSVC doesn't support f16".to_owned(),
                             ))?,
                         },
+                        RustArithmeticTy::F16b => match &self.cc_flavor {
+                            CCFlavor::Gcc => match self.platform.target_arch {
+                                Arch::X86
+                                | Arch::X86_64
+                                | Arch::Arm
+                                | Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64 => "__bf16 ",
+                                _ => Err(UnsupportedError::Other(
+                                    "GCC isn't known to support f16b on this target".to_owned(),
+                                ))?,
+                            },
+                            CCFlavor::Clang | CCFlavor::Zigcc => match self.platform.target_arch {
+                                Arch::X86_64
+                                | Arch::Arm
+                                | Arch::AArch64
+                                | Arch::Riscv32
+                                | Arch::Riscv64 => "__bf16 ",
+                                Arch::X86 if has_sse2 => "__bf16 ",
+                                _ => Err(UnsupportedError::Other(
+                                    "Clang isn't known to support f16b on this target".to_owned(),
+                                ))?,
+                            },
+                            CCFlavor::Msvc => Err(UnsupportedError::Other(
+                                "MSVC doesn't support f16b".to_owned(),
+                            ))?,
+                        },
                         RustArithmeticTy::F128 => match &self.cc_flavor {
                             CCFlavor::Gcc => {
                                 let msg = "GCC isn't known to support f128 on this target";
@@ -309,6 +336,7 @@ impl CcToolchain {
                         | RustArithmeticTy::U128
                         | RustArithmeticTy::U256
                         | RustArithmeticTy::F16
+                        | RustArithmeticTy::F16b
                         | RustArithmeticTy::F32
                         | RustArithmeticTy::F64
                         | RustArithmeticTy::F128,
@@ -457,6 +485,7 @@ impl CcToolchain {
                         | RustArithmeticTy::U128
                         | RustArithmeticTy::U256
                         | RustArithmeticTy::F16
+                        | RustArithmeticTy::F16b
                         | RustArithmeticTy::F32
                         | RustArithmeticTy::F64
                         | RustArithmeticTy::F128,

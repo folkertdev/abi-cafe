@@ -15,7 +15,7 @@ The following kinds of types exist in KDLScript.
     * [`(T, U, V)` - a tuple](./tuples.md)
 * [builtin primitives](./primitives.md)
     * integers (`i8`, `u128`, ...)
-    * floats (`f16`, `f32`, `f64`, `f128`, ...)
+    * floats (`f16`, `f16b`, `f32`, `f64`, `f128`, ...)
     * `bool`- your old pal the boolean (TriBool support TBD)
     * `ptr` - an opaque pointer (`void*`), used when you're interested in the value of the pointer and not its pointee (unlike `&T`)
 

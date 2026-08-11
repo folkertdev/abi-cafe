@@ -207,6 +207,8 @@ pub enum RustArithmeticTy {
     U256,
     /// `f16` / `half`
     F16,
+    /// `f16b` / `__bf16`
+    F16b,
     /// `f32` / `float`
     F32,
     /// `f64` / `double`
@@ -262,6 +264,7 @@ pub const PRIMITIVES: &[(&str, PrimitiveTy)] = &[
     ("u128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U128)),
     ("u256", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::U256)),
     ("f16", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F16)),
+    ("f16b", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F16b)),
     ("f32", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F32)),
     ("f64", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F64)),
     ("f128", PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)),

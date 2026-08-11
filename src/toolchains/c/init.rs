@@ -85,6 +85,11 @@ impl CcToolchain {
                         state.tynames[&ty].0.trim_end(),
                         val.generate_u16()
                     )?,
+                    RustArithmeticTy::F16b => write!(
+                        f,
+                        "(((union {{ uint16_t bits; __bf16 value; }}){{ .bits = {} }}).value)",
+                        val.generate_u16()
+                    )?,
                     RustArithmeticTy::F128 => {
                         // Pick `long double , `__float128` or `_Float128` depending on the target.
                         let (f128_ty_name, _) = &state.tynames[&ty];

@@ -5,8 +5,8 @@ There are various builtin primitives in KDLScript, such as:
 * integers - fixed width integers
     * `i8`, `i16`, `i32`, `i64`, `i128`, `i256`
     * `u8`, `u16`, `u32`, `u64`, `u128`, `u256`
-* floats - fixed with floating point numbers
-    * `f16`, `f32`, `f64`, `f128`
+* floats - fixed width floating point numbers
+    * `f16`, `f16b`, `f32`, `f64`, `f128`
 * `bool`- your old pal the boolean
 * `ptr` - an opaque pointer (`void*`), used when you're interested in the address as a value ([unlike `&T`](./refs.md))
 

@@ -97,6 +97,9 @@ impl RustcToolchain {
                                 ))?;
                             }
                         }
+                        RustArithmeticTy::F16b => Err(UnsupportedError::Other(
+                            "rust f16b support isn't implemented yet".to_owned(),
+                        ))?,
                         RustArithmeticTy::F128 => {
                             if self.is_nightly {
                                 "f128"
@@ -321,6 +324,7 @@ impl RustcToolchain {
                         | RustArithmeticTy::U128
                         | RustArithmeticTy::U256
                         | RustArithmeticTy::F16
+                        | RustArithmeticTy::F16b
                         | RustArithmeticTy::F32
                         | RustArithmeticTy::F64
                         | RustArithmeticTy::F128,
@@ -406,6 +410,7 @@ impl RustcToolchain {
                                     RustArithmeticTy::I256
                                     | RustArithmeticTy::U256
                                     | RustArithmeticTy::F16
+                                    | RustArithmeticTy::F16b
                                     | RustArithmeticTy::F32
                                     | RustArithmeticTy::F64
                                     | RustArithmeticTy::F128 => {
