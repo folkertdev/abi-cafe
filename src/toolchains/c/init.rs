@@ -80,7 +80,9 @@ impl CcToolchain {
                     }
                     RustArithmeticTy::F16 => write!(
                         f,
-                        "(((union {{ uint16_t bits; _Float16 value; }}){{ .bits = {} }}).value)",
+                        "(((union {{ uint16_t bits; {} value; }}){{ .bits = {} }}).value)",
+                        // Pick `_Float16` or `__fp16` depending on the target.
+                        state.tynames[&ty].0.trim_end(),
                         val.generate_u16()
                     )?,
                     RustArithmeticTy::F128 => {

@@ -90,6 +90,13 @@ impl From<CCMode> for ToolchainId {
     }
 }
 
+fn is_mips(arch: Arch) -> bool {
+    matches!(
+        arch,
+        Arch::Mips | Arch::Mips32r6 | Arch::Mips64 | Arch::Mips64r6
+    )
+}
+
 pub struct TestState {
     pub inner: TestImpl,
     // interning state
@@ -454,6 +461,10 @@ impl CcToolchain {
             CCFlavor::Gcc if self.platform.target_arch == Arch::Arm => &["-mfp16-format=ieee"],
             CCFlavor::Clang if self.platform.target_arch == Arch::PowerPc64 && is_le => {
                 &["-mfloat128"]
+            }
+            // Without this `__fp16` is storage-only, and can't be passed or returned.
+            CCFlavor::Clang | CCFlavor::Zigcc if is_mips(self.platform.target_arch) => {
+                &["-Xclang", "-fnative-half-arguments-and-returns"]
             }
             _ => &[],
         }

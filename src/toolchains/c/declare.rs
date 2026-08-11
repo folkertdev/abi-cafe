@@ -135,6 +135,8 @@ impl CcToolchain {
                                 | Arch::Riscv32
                                 | Arch::Riscv64 => "_Float16 ",
                                 Arch::X86 if has_sse2 => "_Float16 ",
+                                // mips has no `_Float16`, only `__fp16`.
+                                arch if is_mips(arch) => "__fp16 ",
                                 _ => Err(UnsupportedError::Other(
                                     "Clang isn't known to support f16 on this target".to_owned(),
                                 ))?,
