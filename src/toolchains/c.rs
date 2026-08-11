@@ -21,6 +21,7 @@ use crate::harness::vals::ArgValuesIter;
 const CALLER_VALS: &str = "CALLER_VALS";
 const CALLEE_VALS: &str = "CALLEE_VALS";
 const INDENT: &str = "    ";
+const VARARGS: &str = "varargs";
 
 pub struct CcToolchain {
     cc_flavor: CCFlavor,
@@ -330,12 +331,37 @@ impl CcToolchain {
         // Report we're starting a function
         self.write_set_function(f, state, CALLEE_VALS, func)?;
 
-        // Report the inputs
+        // Report the fixed inputs
         let mut func_vals = state.vals.at_func(func);
-        for arg in &function.inputs {
+        for arg in function.fixed_inputs() {
             let arg_vals = func_vals.next_arg();
             let arg_name = &arg.name;
             self.write_var(f, state, arg_name, arg.ty, arg_vals, CALLEE_VALS)?;
+        }
+
+        // Report the c-variadic arguments.
+        if function.is_variadic() {
+            let [.., last_fixed] = function.fixed_inputs() else {
+                panic!("we require at least one fixed argument in c-variadic functions");
+            };
+
+            // Initialize the va_list.
+            writeln!(f, "va_list {VARARGS};")?;
+            writeln!(f, "va_start({VARARGS}, {});", last_fixed.name)?;
+
+            for arg in function.variadic_inputs() {
+                let arg_vals = func_vals.next_arg();
+                let arg_name = &arg.name;
+                let (pre, post) = &state.tynames[&arg.ty];
+                let arg_ty = format!("{pre}{post}");
+                writeln!(
+                    f,
+                    "{pre}{arg_name}{post} = va_arg({VARARGS}, {});",
+                    arg_ty.trim()
+                )?;
+                self.write_var(f, state, arg_name, arg.ty, arg_vals, CALLEE_VALS)?;
+            }
+            writeln!(f, "va_end({VARARGS});")?;
         }
 
         // Create outputs and report them

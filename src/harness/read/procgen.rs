@@ -1,3 +1,6 @@
+use crate::toolchains::is_va_arg_safe;
+use kdl_script::types::PRIMITIVES;
+
 pub fn procgen_test_for_ty_string(ty_name: &str, ty_def: Option<&str>) -> String {
     let mut test_body = String::new();
     procgen_test_for_ty_impl(&mut test_body, ty_name, ty_def).expect("failed to format procgen!?");
@@ -58,6 +61,12 @@ fn procgen_test_for_ty_impl(
     add_perturbs(out, ty, big_count, "big")?;
     add_perturbs_struct(out, ty, small_count, "small")?;
     add_perturbs_struct(out, ty, big_count, "big")?;
+
+    // Not every type can be read from a variable argument list.
+    if can_type_be_vararg(ty) {
+        add_variadics(out, ty)?;
+    }
+
     Ok(())
 }
 
@@ -130,6 +139,63 @@ fn add_perturbs_struct(
     Ok(())
 }
 
+/// Can this type be read from a variable argument list?
+fn can_type_be_vararg(ty_name: &str) -> bool {
+    match PRIMITIVES.iter().find(|(name, _)| *name == ty_name) {
+        Some((_, prim)) => is_va_arg_safe(*prim),
+        None => false,
+    }
+}
+
+fn add_variadics(out: &mut dyn std::fmt::Write, ty: &str) -> std::fmt::Result {
+    // Just the function being variadic can change its ABI.
+    add_func_with_varargs(out, "variadic_abi", &[ty], &[], &[])?;
+
+    // Some calling conventions have an overflow_arg_area: pass sufficient arguments that
+    // some actually end up in there.
+    for len in 1..=16 {
+        add_func_with_varargs(
+            out,
+            &format!("variadic_in_{len}"),
+            &["c_int"],
+            &vec![ty; len],
+            &[],
+        )?;
+    }
+
+    // One of these is given to va_start to initialize the va_list,
+    // and must itself not be subject to the default argument promotions.
+    let padders = ["c_int", "c_double"];
+
+    // Push c-variadic arguments out of the argument registers.
+    for padder in padders {
+        for len in 1..=8 {
+            add_func_with_varargs(
+                out,
+                &format!("variadic_in_{len}_fixed_{padder}"),
+                &vec![padder; len],
+                &[ty],
+                &[],
+            )?;
+        }
+    }
+
+    // Check that values are padded correctly to respect their alignment.
+    let mut aligners = vec![ty];
+    aligners.extend(["c_int", ty]);
+    aligners.extend(["c_int", "c_int", ty]);
+    aligners.extend(["c_long", ty]);
+    aligners.extend(["c_longlong", ty]);
+    aligners.extend(["c_double", ty]);
+    aligners.extend(["c_double", "c_double", ty]);
+    // FIXME: enable when rust has c_longdouble
+    // aligners.extend(["c_longdouble", ty]);
+
+    add_func_with_varargs(out, "variadic_in_aligners", &["c_int"], &aligners, &[])?;
+
+    Ok(())
+}
+
 fn perturb_list(ty: &str, count: usize, idx: usize) -> Vec<&str> {
     let mut inputs = vec![ty; count];
 
@@ -146,11 +212,41 @@ fn add_func(
     inputs: &[&str],
     outputs: &[&str],
 ) -> std::fmt::Result {
+    add_func_with_varargs_help(out, func_name, inputs, None, outputs)
+}
+
+fn add_func_with_varargs(
+    out: &mut dyn std::fmt::Write,
+    func_name: &str,
+    fixed_inputs: &[&str],
+    variadic_inputs: &[&str],
+    outputs: &[&str],
+) -> std::fmt::Result {
+    add_func_with_varargs_help(out, func_name, fixed_inputs, Some(variadic_inputs), outputs)
+}
+
+fn add_func_with_varargs_help(
+    out: &mut dyn std::fmt::Write,
+    func_name: &str,
+    fixed_inputs: &[&str],
+    variadic_inputs: Option<&[&str]>,
+    outputs: &[&str],
+) -> std::fmt::Result {
     writeln!(out, r#"fn "{func_name}" {{"#)?;
     writeln!(out, r#"    inputs {{"#)?;
-    for arg_ty in inputs {
+    for arg_ty in fixed_inputs {
         writeln!(out, r#"        _ "{arg_ty}""#)?;
     }
+
+    if let Some(variadic_inputs) = variadic_inputs {
+        writeln!(out, r#"        _ "...""#)?;
+
+        // This list may be empty, but having a `...` in the signature can change the ABI.
+        for arg_ty in variadic_inputs {
+            writeln!(out, r#"        _ "{arg_ty}""#)?;
+        }
+    }
+
     writeln!(out, r#"    }}"#)?;
     writeln!(out, r#"    outputs {{"#)?;
     for arg_ty in outputs {
