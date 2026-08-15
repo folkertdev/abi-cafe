@@ -124,7 +124,7 @@ impl TestHarness {
 
     fn bin_name(&self, key: &TestKey) -> String {
         let mut output = self.base_id(key, None, "_");
-        if cfg!(target_os = "windows") {
+        if self.toolchains.platform_info.target.target_os == platforms::Os::Windows {
             output.push_str(".exe");
         }
         output
