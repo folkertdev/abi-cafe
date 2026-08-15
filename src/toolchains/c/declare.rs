@@ -209,7 +209,9 @@ impl CcToolchain {
                                     | Arch::Riscv64
                                     | Arch::Loongarch64
                                     | Arch::Sparc
-                                    | Arch::Sparc64 => "long double ",
+                                    | Arch::Sparc64
+                                    | Arch::Wasm32
+                                    | Arch::Wasm64 => "long double ",
                                     _ => Err(UnsupportedError::Other(msg.to_owned()))?,
                                 }
                             }
