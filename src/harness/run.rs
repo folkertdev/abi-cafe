@@ -199,7 +199,17 @@ fn run_bin_test(test: Arc<Test>, test_bin: &LinkOutput) -> Result<RunOutput, Run
         // Load the dylib of the test, and get its test_start symbol
 
         debug!("loading     {}", &test_bin.test_bin);
-        let mut cmd = Command::new(&test_bin.test_bin);
+        // A custom runner (e.g. wasmtime, wine, qemu).
+        let runner = std::env::var("ABI_CAFE_RUNNER").unwrap_or_default();
+        let mut runner = runner.split_whitespace();
+        let mut cmd = match runner.next() {
+            Some(prog) => {
+                let mut cmd = Command::new(prog);
+                cmd.args(runner).arg(&test_bin.test_bin);
+                cmd
+            }
+            None => Command::new(&test_bin.test_bin),
+        };
         let output = cmd.output().map_err(|e| RunError::ExecError {
             bin: test_bin.test_bin.clone(),
             e,
