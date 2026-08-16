@@ -68,6 +68,7 @@ pub struct Config {
     pub run_values: Vec<ValueGeneratorKind>,
     pub run_writers: Vec<WriteImpl>,
     pub run_selections: Vec<FunctionSelector>,
+    pub run_variadics: Vec<Variadics>,
     pub minimizing_write_impl: WriteImpl,
     pub cc_toolchains: Vec<(CCFlavor, String, Utf8PathBuf)>,
     pub rustc_codegen_backends: Vec<(String, String)>,
@@ -129,38 +130,45 @@ fn main() -> Result<(), Box<dyn Error>> {
         if !cfg.run_tests.is_empty() && !cfg.run_tests.contains(&test.name) {
             continue;
         }
-        for &convention in &cfg.run_conventions {
-            if !test.has_convention(convention) {
+        for &variadics in &cfg.run_variadics {
+            if !test.has_functions(variadics) {
                 continue;
             }
-            for (caller_id, callee_id) in &cfg.run_pairs {
-                if !cfg.run_toolchains.is_empty()
-                    && !cfg.run_toolchains.iter().any(|x| x == caller_id)
-                    && !cfg.run_toolchains.iter().any(|x| &**x == callee_id)
-                {
+            for &convention in &cfg.run_conventions {
+                if !test.has_convention(convention) {
                     continue;
                 }
-                for &repr in &cfg.run_reprs {
-                    for &val_generator in &cfg.run_values {
-                        for &val_writer in &cfg.run_writers {
-                            for functions in &cfg.run_selections {
-                                // Run the test!
-                                let test_key = TestKey {
-                                    test: test.name.to_owned(),
-                                    caller: caller_id.to_owned(),
-                                    callee: callee_id.to_owned(),
-                                    options: TestOptions {
-                                        convention,
-                                        repr,
-                                        val_writer,
-                                        val_generator,
-                                        functions: functions.clone(),
-                                    },
-                                };
-                                let rules = harness.get_test_rules(&test_key);
-                                let task = harness.clone().spawn_test(&rt, rules, test_key.clone());
+                for (caller_id, callee_id) in &cfg.run_pairs {
+                    if !cfg.run_toolchains.is_empty()
+                        && !cfg.run_toolchains.iter().any(|x| x == caller_id)
+                        && !cfg.run_toolchains.iter().any(|x| &**x == callee_id)
+                    {
+                        continue;
+                    }
+                    for &repr in &cfg.run_reprs {
+                        for &val_generator in &cfg.run_values {
+                            for &val_writer in &cfg.run_writers {
+                                for functions in &cfg.run_selections {
+                                    // Run the test!
+                                    let test_key = TestKey {
+                                        test: test.name.to_owned(),
+                                        caller: caller_id.to_owned(),
+                                        callee: callee_id.to_owned(),
+                                        options: TestOptions {
+                                            convention,
+                                            repr,
+                                            val_writer,
+                                            val_generator,
+                                            functions: functions.clone(),
+                                            variadics,
+                                        },
+                                    };
+                                    let rules = harness.get_test_rules(&test_key);
+                                    let task =
+                                        harness.clone().spawn_test(&rt, rules, test_key.clone());
 
-                                tasks.push(task);
+                                    tasks.push(task);
+                                }
                             }
                         }
                     }

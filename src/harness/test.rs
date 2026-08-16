@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use crate::harness::vals::{ValueGeneratorKind, ValueTree};
 use crate::toolchains::*;
-use kdl_script::{parse::LangRepr, types::FuncIdx, DefinitionGraph, PunEnv, TypedProgram};
+use kdl_script::{
+    parse::LangRepr,
+    types::{Func, FuncIdx},
+    DefinitionGraph, PunEnv, TypedProgram,
+};
 use serde::Serialize;
 
 use crate::{error::GenerateError, CliParseError};
@@ -64,6 +68,16 @@ pub struct TestOptions {
     pub val_writer: WriteImpl,
     pub val_generator: ValueGeneratorKind,
     pub repr: LangRepr,
+    pub variadics: Variadics,
+}
+impl TestOptions {
+    pub fn active_funcs(&self, types: &TypedProgram) -> Vec<FuncIdx> {
+        self.functions
+            .active_funcs(types)
+            .into_iter()
+            .filter(|&idx| self.variadics.matches(types.realize_func(idx)))
+            .collect()
+    }
 }
 impl FunctionSelector {
     pub fn should_write_arg(&self, func_idx: usize, arg_idx: usize) -> bool {
@@ -130,6 +144,40 @@ pub enum ArgSelector {
 pub enum ValSelector {
     All,
     One { idx: usize },
+}
+
+/// Whether to run normal or c-variadic tests.
+#[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Variadics {
+    Normal,
+    Variadic,
+}
+impl Variadics {
+    pub fn matches(&self, func: &Func) -> bool {
+        func.is_variadic() == matches!(self, Variadics::Variadic)
+    }
+}
+impl std::str::FromStr for Variadics {
+    type Err = CliParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "normal" => Ok(Self::Normal),
+            "variadic" => Ok(Self::Variadic),
+            _ => Err(CliParseError::Other(format!(
+                "{s} is not a variadics selector"
+            ))),
+        }
+    }
+}
+impl std::fmt::Display for Variadics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Normal => "normal",
+            Self::Variadic => "variadic",
+        };
+        s.fmt(f)
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -237,6 +285,12 @@ impl std::fmt::Display for WriteImpl {
 impl Test {
     pub fn has_convention(&self, _convention: CallingConvention) -> bool {
         true
+    }
+
+    pub fn has_functions(&self, variadics: Variadics) -> bool {
+        self.types
+            .all_funcs()
+            .any(|idx| variadics.matches(self.types.realize_func(idx)))
     }
 
     pub async fn with_vals(

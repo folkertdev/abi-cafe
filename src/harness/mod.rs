@@ -215,6 +215,7 @@ impl TestHarness {
                     val_writer,
                     val_generator,
                     repr,
+                    variadics,
                 },
             caller,
             callee,
@@ -228,6 +229,13 @@ impl TestHarness {
         output.push_str(&format!("conv_{convention}"));
         output.push_str(separator);
         output.push_str(&format!("repr_{repr}"));
+        match variadics {
+            Variadics::Normal => { /* do nothing, this is the default */ }
+            Variadics::Variadic => {
+                output.push_str(separator);
+                output.push_str(&variadics.to_string());
+            }
+        }
         if let FunctionSelector::One { idx, args } = functions {
             let test = self.tests[test].clone();
             let func = test.types.realize_func(*idx);
