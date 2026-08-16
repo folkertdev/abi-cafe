@@ -12,9 +12,16 @@ use crate::*;
 
 impl TestHarness {
     pub async fn generate_test(&self, key: &TestKey) -> Result<GenerateOutput, GenerateError> {
-        // FIXME: these two could be done concurrently
-        let caller_src = self.generate_src(key, CallSide::Caller).await?;
-        let callee_src = self.generate_src(key, CallSide::Callee).await?;
+        // An empty test would "pass" vacuously, so don't generate one.
+        let active = key.options.active_funcs(&self.tests[&key.test].types);
+        if active.is_empty() {
+            return Err(GenerateError::Skipped);
+        }
+
+        let (caller_src, callee_src) = tokio::try_join!(
+            self.generate_src(key, CallSide::Caller),
+            self.generate_src(key, CallSide::Callee),
+        )?;
 
         Ok(GenerateOutput {
             caller_src,

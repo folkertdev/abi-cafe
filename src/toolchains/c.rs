@@ -112,7 +112,7 @@ impl std::ops::Deref for TestState {
 }
 impl TestState {
     fn new(inner: TestImpl) -> Self {
-        let desired_funcs = inner.options.functions.active_funcs(&inner.types);
+        let desired_funcs = inner.options.active_funcs(&inner.types);
         Self {
             inner,
             desired_funcs,

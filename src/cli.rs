@@ -218,6 +218,7 @@ pub fn make_app() -> Config {
     let run_values = gen_vals;
     let run_writers = write_vals;
     let run_selections = vec![FunctionSelector::All];
+    let run_variadics = vec![Variadics::Normal, Variadics::Variadic];
     let minimizing_write_impl = minimize_vals;
 
     let target = target.map(|target| {
@@ -338,6 +339,7 @@ Hint: Try using `--pairs {name}_calls_rustc` or `--pairs rustc_calls_{name}`.
         run_values,
         run_writers,
         run_selections,
+        run_variadics,
         minimizing_write_impl,
         disable_builtin_tests,
         disable_builtin_rules,

@@ -36,13 +36,12 @@ impl TestHarness {
 
         let mut results: Vec<SubtestDetails> = Vec::new();
 
-        // `Run` already checks that this length is congruent with all the inputs/outputs Vecs
-        let expected_funcs = key.options.functions.active_funcs(&test.types);
+        let expected_funcs = key.options.active_funcs(&test.types);
 
         // Layer 1 is the funcs/subtests. Because we have already checked
         // that they agree on their lengths, we can zip them together
         // to walk through their views of each subtest's execution.
-        'funcs: for func_idx in expected_funcs {
+        'funcs: for &func_idx in &expected_funcs {
             let caller_func = caller_funcs.funcs.get(func_idx).unwrap_or(&empty_func);
             let callee_func = callee_funcs.funcs.get(func_idx).unwrap_or(&empty_func);
             let mut expected_vals = vec![];
@@ -83,10 +82,9 @@ impl TestHarness {
         // This will be done again after all tests have been run, but it's
         // useful to keep a version of this near the actual compilation/execution
         // in case the compilers spit anything interesting to stdout/stderr.
-        let names = test
-            .types
-            .all_funcs()
-            .map(|func_id| self.full_subtest_name(key, &test.types.realize_func(func_id).name))
+        let names = expected_funcs
+            .iter()
+            .map(|&func_id| self.full_subtest_name(key, &test.types.realize_func(func_id).name))
             .collect::<Vec<_>>();
         let max_name_len = names.iter().fold(0, |max, name| max.max(name.len()));
         let num_passed = results.iter().filter(|t| t.result.is_ok()).count();

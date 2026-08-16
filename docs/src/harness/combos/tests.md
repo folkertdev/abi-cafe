@@ -84,6 +84,7 @@ A test-key can include the following parts:
 * `<test>`: the name of the test (`CLikeTagged`, this is the only purely positional part of a key, it must come first. You can omit it by starting a key with `::`) 
 * `<convention>`: the [calling convention](./conventions.md) (`conv_c`)
 * `<repr>`: the [repr of aggregates](./reprs.md) (`repr_c`)
+* `variadic`: only the test's c-variadic functions.
 * `<generator>`: the [value generator](./values.md) (`graffiti`)
 *  a [toolchain pairing selector](./toolchains.md):
     * `<pairing>`: this exact toolchain pairing in this order (`cc_calls_rustc`)

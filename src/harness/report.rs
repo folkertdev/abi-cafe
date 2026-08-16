@@ -237,6 +237,7 @@ pub struct TestOptionsPattern {
     pub convention: Option<CallingConvention>,
     pub val_generator: Option<ValueGeneratorKind>,
     pub repr: Option<LangRepr>,
+    pub variadics: Option<Variadics>,
 }
 impl TestKey {
     pub(crate) fn toolchain_id(&self, call_side: CallSide) -> &str {
@@ -259,6 +260,7 @@ impl TestKeyPattern {
                     convention,
                     val_generator,
                     repr,
+                    variadics,
                 },
         } = self;
 
@@ -299,6 +301,11 @@ impl TestKeyPattern {
                 return false;
             }
         }
+        if let Some(variadics) = variadics {
+            if variadics != &key.options.variadics {
+                return false;
+            }
+        }
 
         true
     }
@@ -320,6 +327,7 @@ impl std::str::FromStr for TestKeyPattern {
                 convention: None,
                 repr: None,
                 val_generator: None,
+                variadics: None,
             },
         };
 
@@ -359,6 +367,11 @@ impl std::str::FromStr for TestKeyPattern {
                 key.options.convention = Some(conv.parse()?);
                 continue;
             }
+            // variadics
+            if let Ok(variadics) = part.parse() {
+                key.options.variadics = Some(variadics);
+                continue;
+            }
             // generator
             if let Ok(val_generator) = part.parse() {
                 key.options.val_generator = Some(val_generator);
@@ -382,6 +395,7 @@ impl std::fmt::Display for TestKeyPattern {
                     convention,
                     val_generator,
                     repr,
+                    variadics,
                 },
         } = self;
         let separator = "::";
@@ -396,6 +410,10 @@ impl std::fmt::Display for TestKeyPattern {
         if let Some(repr) = repr {
             output.push_str(separator);
             output.push_str(&format!("repr_{repr}"));
+        }
+        if let Some(variadics) = variadics {
+            output.push_str(separator);
+            output.push_str(&variadics.to_string());
         }
         if let Some(toolchain) = toolchain {
             output.push_str(separator);
