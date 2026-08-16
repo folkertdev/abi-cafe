@@ -1027,7 +1027,11 @@ impl TyCtx {
     /// Stringify a type.
     pub fn format_ty(&self, ty: TyIdx) -> String {
         match self.realize_ty(ty) {
-            Ty::Primitive(prim) => prim.to_string(),
+            Ty::Primitive(prim) => PRIMITIVES
+                .iter()
+                .find(|(_, known)| known == prim)
+                .map(|(name, _)| (*name).to_owned())
+                .unwrap_or_else(|| format!("{prim:?}").to_lowercase()),
             Ty::Empty => "()".to_string(),
             Ty::Struct(decl) => format!("{}", decl.name),
             Ty::Enum(decl) => format!("{}", decl.name),
