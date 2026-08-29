@@ -1,0 +1,7 @@
+struct "NestedF32Wrapper" {
+    _ "InnerF32"
+}
+
+struct "InnerF32" {
+    _ "f32"
+}

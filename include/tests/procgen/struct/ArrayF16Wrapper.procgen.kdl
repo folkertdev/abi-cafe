@@ -1,0 +1,3 @@
+struct "ArrayF16Wrapper" {
+    _ "[f16; 1]"
+}

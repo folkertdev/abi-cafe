@@ -1,0 +1,4 @@
+@align 8
+struct "Aligned8F16Wrapper" {
+    _ "f16"
+}

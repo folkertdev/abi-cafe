@@ -1,0 +1,3 @@
+struct "F64Wrapper" {
+    _ "f64"
+}
