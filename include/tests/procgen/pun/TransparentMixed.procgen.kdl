@@ -1,0 +1,19 @@
+pun "TransparentMixed" {
+    lang "rust" {
+        @repr "transparent"
+        struct "TransparentMixed" {
+            _ "MixedInner"
+        }
+    }
+
+    lang "c" "cpp" {
+        alias "TransparentMixed" "MixedInner"
+    }
+}
+
+struct "MixedInner" {
+    a "i32"
+    b "f32"
+    c "i64"
+    d "f64"
+}
