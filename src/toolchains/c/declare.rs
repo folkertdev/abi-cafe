@@ -123,7 +123,8 @@ impl CcToolchain {
                                 | Arch::Arm
                                 | Arch::AArch64
                                 | Arch::Riscv32
-                                | Arch::Riscv64 => "_Float16 ",
+                                | Arch::Riscv64
+                                | Arch::S390X => "_Float16 ",
                                 _ => Err(UnsupportedError::Other(
                                     "GCC isn't known to support f16 on this target".to_owned(),
                                 ))?,
@@ -133,7 +134,8 @@ impl CcToolchain {
                                 | Arch::Arm
                                 | Arch::AArch64
                                 | Arch::Riscv32
-                                | Arch::Riscv64 => "_Float16 ",
+                                | Arch::Riscv64
+                                | Arch::S390X => "_Float16 ",
                                 Arch::X86 if has_sse2 => "_Float16 ",
                                 // mips has no `_Float16`, only `__fp16`.
                                 arch if is_mips(arch) => "__fp16 ",

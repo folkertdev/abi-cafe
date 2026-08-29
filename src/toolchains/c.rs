@@ -488,6 +488,8 @@ impl CcToolchain {
             CCFlavor::Clang if self.platform.target_arch == Arch::PowerPc64 && is_le => {
                 &["-mfloat128"]
             }
+            // z10 is the default in rustc and clang.
+            CCFlavor::Gcc if self.platform.target_arch == Arch::S390X => &["-march=z10"],
             // Without this `__fp16` is storage-only, and can't be passed or returned.
             CCFlavor::Clang | CCFlavor::Zigcc if is_mips(self.platform.target_arch) => {
                 &["-Xclang", "-fnative-half-arguments-and-returns"]
