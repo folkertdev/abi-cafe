@@ -1,0 +1,7 @@
+struct "EmptyStructF32Wrapper" {
+    _ "f32"
+    _ "EmptyStruct"
+}
+
+struct "EmptyStruct" {
+}
