@@ -1,0 +1,7 @@
+struct "SingleF32UnionArrayInside" {
+    _ "[InnerUnionF32; 1]"
+}
+
+union "InnerUnionF32" {
+    _ "f32"
+}

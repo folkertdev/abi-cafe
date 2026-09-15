@@ -1,0 +1,3 @@
+union "SingleF32ArrayUnion" {
+    _ "[f32; 1]"
+}

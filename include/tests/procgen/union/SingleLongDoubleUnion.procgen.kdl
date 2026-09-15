@@ -1,0 +1,3 @@
+union "SingleLongDoubleUnion" {
+    _ "c_longdouble"
+}
