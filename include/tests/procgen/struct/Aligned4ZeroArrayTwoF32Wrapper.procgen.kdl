@@ -1,0 +1,5 @@
+struct "Aligned4ZeroArrayTwoF32Wrapper" {
+    _ "f32"
+    _ "f32"
+    _ "[u32; 0]"
+}

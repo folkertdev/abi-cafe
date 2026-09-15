@@ -1,0 +1,8 @@
+struct "Aligned4EmptyStructF32Wrapper" {
+    _ "f32"
+    _ "Aligned4EmptyStruct"
+}
+
+@align 4
+struct "Aligned4EmptyStruct" {
+}

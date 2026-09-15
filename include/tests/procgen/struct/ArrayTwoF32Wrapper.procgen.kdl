@@ -1,0 +1,3 @@
+struct "ArrayTwoF32Wrapper" {
+    _ "[f32; 2]"
+}

@@ -1,0 +1,4 @@
+union "TwoF32Union" {
+    _ "f32"
+    _ "f32"
+}

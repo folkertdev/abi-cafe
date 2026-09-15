@@ -1,0 +1,9 @@
+struct "F32UnionInHfa" {
+    u "TwoF32UnionMember"
+    g "f32"
+}
+
+union "TwoF32UnionMember" {
+    _ "f32"
+    _ "f32"
+}

@@ -1,0 +1,8 @@
+struct "TwoF32UnionInside" {
+    _ "InnerTwoF32Union"
+}
+
+union "InnerTwoF32Union" {
+    _ "f32"
+    _ "f32"
+}

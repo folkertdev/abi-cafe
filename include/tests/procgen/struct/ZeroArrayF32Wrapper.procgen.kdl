@@ -1,0 +1,4 @@
+struct "ZeroArrayF32Wrapper" {
+    _ "f32"
+    _ "[u8; 0]"
+}
