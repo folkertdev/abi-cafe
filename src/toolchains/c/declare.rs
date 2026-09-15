@@ -71,7 +71,9 @@ impl CcToolchain {
 
         let is_msvc = matches!(self.platform.target_env, Env::Msvc);
 
-        let is_64bit = matches!(self.platform.target_pointer_width, PointerWidth::U64);
+        // x32 has 32-bit pointers but is otherwise x86-64, so C still has __int128.
+        let has_int128 = matches!(self.platform.target_pointer_width, PointerWidth::U64)
+            || matches!(self.platform.target_arch, Arch::X86_64);
 
         let (prefix, suffix) = match state.types.realize_ty(ty) {
             // Structural types that don't need definitions but we should
@@ -87,7 +89,7 @@ impl CcToolchain {
                         RustArithmeticTy::I32 => "int32_t ",
                         RustArithmeticTy::I64 => "int64_t ",
                         RustArithmeticTy::I128 => {
-                            if is_64bit {
+                            if has_int128 {
                                 "__int128_t "
                             } else {
                                 Err(UnsupportedError::Other(
@@ -100,7 +102,7 @@ impl CcToolchain {
                         RustArithmeticTy::U32 => "uint32_t ",
                         RustArithmeticTy::U64 => "uint64_t ",
                         RustArithmeticTy::U128 => {
-                            if is_64bit {
+                            if has_int128 {
                                 "__uint128_t "
                             } else {
                                 Err(UnsupportedError::Other(
