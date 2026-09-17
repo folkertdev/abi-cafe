@@ -189,6 +189,9 @@ impl Toolchain for CcToolchain {
         if self.debug {
             cmd.arg("-g");
         }
+        for flag in self.extra_link_flags() {
+            cmd.arg(flag);
+        }
         // The caller references the callee, so it has to come first
         cmd.arg("-o")
             .arg(&output)
@@ -494,6 +497,14 @@ impl CcToolchain {
             CCFlavor::Clang | CCFlavor::Zigcc if is_mips(self.platform.target_arch) => {
                 &["-Xclang", "-fnative-half-arguments-and-returns"]
             }
+            _ => &[],
+        }
+    }
+
+    fn extra_link_flags(&self) -> &[&str] {
+        match self.platform.target_arch {
+            // Some of our tests overflow the default 64KiB wasm stack.
+            Arch::Wasm32 | Arch::Wasm64 => &["-Wl,-z,stack-size=1048576"],
             _ => &[],
         }
     }

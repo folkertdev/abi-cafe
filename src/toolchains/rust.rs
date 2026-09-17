@@ -156,6 +156,13 @@ impl Toolchain for RustcToolchain {
         if let Some(linker) = &self.linker {
             cmd.arg(format!("-Clinker={linker}"));
         }
+        // Some of our tests overflow the default 64KiB wasm stack.
+        if matches!(
+            self.platform_info.target.target_arch,
+            platforms::Arch::Wasm32 | platforms::Arch::Wasm64
+        ) {
+            cmd.arg("-Clink-arg=-Wl,-z,stack-size=1048576");
+        }
         if self.debug {
             cmd.arg("-g");
         }
