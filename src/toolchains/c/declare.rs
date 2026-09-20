@@ -72,8 +72,12 @@ impl CcToolchain {
         let is_msvc = matches!(self.platform.target_env, Env::Msvc);
 
         // x32 has 32-bit pointers but is otherwise x86-64, so C still has __int128.
+        // On 32-bit x86 only clang has it, via the -fforce-enable-int128 that
+        // extra_flags passes; gcc has no way to enable __int128 there.
         let has_int128 = matches!(self.platform.target_pointer_width, PointerWidth::U64)
-            || matches!(self.platform.target_arch, Arch::X86_64);
+            || matches!(self.platform.target_arch, Arch::X86_64)
+            || (matches!(self.platform.target_arch, Arch::X86)
+                && matches!(self.cc_flavor, CCFlavor::Clang));
 
         let (prefix, suffix) = match state.types.realize_ty(ty) {
             // Structural types that don't need definitions but we should

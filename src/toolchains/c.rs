@@ -488,6 +488,8 @@ impl CcToolchain {
         let is_le = self.platform.target_endian == Endian::Little;
         match self.cc_flavor {
             CCFlavor::Gcc if self.platform.target_arch == Arch::Arm => &["-mfp16-format=ieee"],
+            // 32-bit x86 has no __int128 unless it is explicitly enabled.
+            CCFlavor::Clang if self.platform.target_arch == Arch::X86 => &["-fforce-enable-int128"],
             CCFlavor::Clang if self.platform.target_arch == Arch::PowerPc64 && is_le => {
                 &["-mfloat128"]
             }
