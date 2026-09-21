@@ -18,6 +18,7 @@ impl RustcToolchain {
             writeln!(f, "#![feature(abi_vectorcall)]")?;
         }
         let mut has_f16 = false;
+        let mut has_f16b = false;
         let mut has_f128 = false;
         let mut has_complex = false;
         for def in state.defs.definitions(state.desired_funcs.iter().copied()) {
@@ -29,6 +30,9 @@ impl RustcToolchain {
                         }
                         Ty::Primitive(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128)) => {
                             has_f128 = true
+                        }
+                        Ty::Primitive(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F16b)) => {
+                            has_f16b = true
                         }
                         Ty::Primitive(PrimitiveTy::Complex(_)) => has_complex = true,
                         _ => {}
@@ -45,6 +49,9 @@ impl RustcToolchain {
         }
         if has_complex {
             writeln!(f, "#![feature(complex_numbers)]")?;
+        }
+        if has_f16b {
+            writeln!(f, "#![feature(f16b)]")?;
         }
 
         let mut variadic_funcs = state

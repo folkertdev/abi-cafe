@@ -38,9 +38,9 @@ impl RustcToolchain {
                         Err(UnsupportedError::Other("rust doesn't have u256".to_owned()))?
                     }
                     RustArithmeticTy::F16 => write!(f, "f16::from_bits({})", val.generate_u16())?,
-                    RustArithmeticTy::F16b => Err(UnsupportedError::Other(
-                        "rust f16b support isn't implemented yet".to_owned(),
-                    ))?,
+                    RustArithmeticTy::F16b => {
+                        write!(f, "core::num::f16b::from_bits({})", val.generate_u16())?
+                    }
                     RustArithmeticTy::F128 => {
                         write!(f, "f128::from_bits({})", val.generate_u128())?
                     }

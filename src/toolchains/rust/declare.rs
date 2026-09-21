@@ -3,6 +3,7 @@ use kdl_script::parse::{Attr, AttrAligned, AttrPacked, AttrPassthrough, AttrRepr
 use kdl_script::types::{
     AliasTy, ArrayTy, CArithmeticTy, FuncIdx, PrimitiveTy, RefTy, RustArithmeticTy, Ty, TyIdx,
 };
+use platforms::Arch;
 use std::fmt::Write;
 
 impl RustcToolchain {
@@ -97,9 +98,24 @@ impl RustcToolchain {
                                 ))?;
                             }
                         }
-                        RustArithmeticTy::F16b => Err(UnsupportedError::Other(
-                            "rust f16b support isn't implemented yet".to_owned(),
-                        ))?,
+                        RustArithmeticTy::F16b => match self.platform_info.target.target_arch {
+                            _ if !self.is_nightly => {
+                                return Err(UnsupportedError::Other(
+                                    "f16b is an unstable rust feature, requires nightly".to_owned(),
+                                ))?
+                            }
+                            // Support is reliable here.
+                            Arch::Arm | Arch::AArch64 => "core::num::f16b",
+                            // Support is unreliable here, but good enough for abi-cafe.
+                            Arch::X86_64 | Arch::X86 => "core::num::f16b",
+                            Arch::Riscv64 | Arch::Riscv32 => "core::num::f16b",
+                            Arch::Loongarch64 | Arch::Loongarch32 => "core::num::f16b",
+                            other => {
+                                return Err(UnsupportedError::Other(format!(
+                                    "f16b is not supported on target {other:?}"
+                                )))?
+                            }
+                        },
                         RustArithmeticTy::F128 => {
                             if self.is_nightly {
                                 "f128"
