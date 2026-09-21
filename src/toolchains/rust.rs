@@ -448,6 +448,12 @@ impl RustcToolchain {
             ))?;
         }
 
+        if self.has_variadic_f128(state, function) && !self.variadic_f128_supported() {
+            Err(UnsupportedError::Other(
+                "rust doesn't implement VaArgSafe for f128 on this target".to_owned(),
+            ))?;
+        }
+
         if self.has_variadic_complex_number(state, function) {
             Err(UnsupportedError::Other(
                 "rust doesn't implement VaArgSafe for complex numbers yet".to_owned(),
@@ -467,6 +473,18 @@ impl RustcToolchain {
                 Some(PrimitiveTy::RustArithmeticTy(
                     RustArithmeticTy::I128 | RustArithmeticTy::U128
                 ))
+            )
+        })
+    }
+
+    /// Does this function pass an `f128` as a c-variadic argument?
+    ///
+    /// Doing so requires `#![feature(f128)]`.
+    pub fn has_variadic_f128(&self, state: &TestState, function: &Func) -> bool {
+        function.variadic_inputs().iter().any(|arg| {
+            matches!(
+                variadic_arg_prim(&state.types, &state.env, arg.ty),
+                Some(PrimitiveTy::RustArithmeticTy(RustArithmeticTy::F128))
             )
         })
     }
@@ -507,6 +525,39 @@ impl RustcToolchain {
             | Arch::Wasm64 => is_64bit,
             _ => false,
         }
+    }
+
+    /// Are `f128` c-varargs implemented for this target?
+    fn variadic_f128_supported(&self) -> bool {
+        // Keep this up-to-date with the `cfg_select!` in `core::ffi::va_list`.
+        const CFG: &str = r#"any(
+            all(target_arch = "x86_64", not(target_vendor = "apple"), not(target_env = "msvc")),
+            all(target_arch = "x86", not(target_vendor = "apple"), not(target_env = "msvc")),
+            all(target_arch = "powerpc64", target_feature = "vsx"),
+            all(
+                not(windows),
+                not(target_vendor = "apple"),
+                any(
+                    target_arch = "aarch64",
+                    target_arch = "loongarch32",
+                    target_arch = "loongarch64",
+                    target_arch = "mips64",
+                    target_arch = "mips64r6",
+                    target_arch = "riscv32",
+                    target_arch = "riscv64",
+                    target_arch = "s390x",
+                    target_arch = "sparc",
+                    target_arch = "sparc64",
+                    target_arch = "wasm32",
+                    target_arch = "wasm64",
+                ),
+            ),
+        )"#;
+
+        // The cfg parser has no notion of a multi-line expression.
+        cargo_platform::CfgExpr::from_str(&CFG.replace('\n', " "))
+            .unwrap()
+            .matches(&self.platform_info.cfgs)
     }
 
     fn check_returns(&self, state: &TestState, function: &Func) -> Result<(), GenerateError> {

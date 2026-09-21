@@ -47,7 +47,8 @@ pub fn is_va_arg_safe(prim: PrimitiveTy) -> bool {
             | RustArithmeticTy::U32
             | RustArithmeticTy::U64
             | RustArithmeticTy::U128
-            | RustArithmeticTy::F64 => true,
+            | RustArithmeticTy::F64
+            | RustArithmeticTy::F128 => true,
             // Subject to default argument promotions.
             RustArithmeticTy::I8
             | RustArithmeticTy::I16
@@ -56,7 +57,6 @@ pub fn is_va_arg_safe(prim: PrimitiveTy) -> bool {
             | RustArithmeticTy::F16
             | RustArithmeticTy::F32 => false,
             // Future work.
-            RustArithmeticTy::F128 => false,
             RustArithmeticTy::F16b => false,
             // Not supported.
             RustArithmeticTy::I256 | RustArithmeticTy::U256 => false,
