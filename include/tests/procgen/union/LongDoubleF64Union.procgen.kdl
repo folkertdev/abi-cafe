@@ -1,0 +1,4 @@
+union "LongDoubleF64Union" {
+    _ "c_longdouble"
+    _ "f64"
+}

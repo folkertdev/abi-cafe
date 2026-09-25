@@ -1,0 +1,9 @@
+union "LongDoubleU64F64Union" {
+    _ "c_longdouble"
+    _ "U64F64"
+}
+
+struct "U64F64" {
+    _ "u64"
+    _ "f64"
+}
