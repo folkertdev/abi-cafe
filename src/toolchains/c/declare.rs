@@ -58,11 +58,7 @@ impl CcToolchain {
 
         let has_vsx = self.platform.target_endian == platforms::Endian::Little;
 
-        let has_sse2 = cfg_select! {
-            target_arch = "x86" => cfg!(target_feature = "sse2"),
-            target_arch = "x86_64" => true,
-            _ => false,
-        };
+        let has_sse2 = self.has_sse2;
 
         let is_apple = matches!(
             self.platform.target_os,
@@ -124,13 +120,13 @@ impl CcToolchain {
                         }
                         RustArithmeticTy::F16 => match &self.cc_flavor {
                             CCFlavor::Gcc => match self.platform.target_arch {
-                                Arch::X86
-                                | Arch::X86_64
+                                Arch::X86_64
                                 | Arch::Arm
                                 | Arch::AArch64
                                 | Arch::Riscv32
                                 | Arch::Riscv64
                                 | Arch::S390X => "_Float16 ",
+                                Arch::X86 if has_sse2 => "_Float16 ",
                                 _ => Err(UnsupportedError::Other(
                                     "GCC isn't known to support f16 on this target".to_owned(),
                                 ))?,
@@ -155,12 +151,12 @@ impl CcToolchain {
                         },
                         RustArithmeticTy::F16b => match &self.cc_flavor {
                             CCFlavor::Gcc => match self.platform.target_arch {
-                                Arch::X86
-                                | Arch::X86_64
+                                Arch::X86_64
                                 | Arch::Arm
                                 | Arch::AArch64
                                 | Arch::Riscv32
                                 | Arch::Riscv64 => "__bf16 ",
+                                Arch::X86 if has_sse2 => "__bf16 ",
                                 _ => Err(UnsupportedError::Other(
                                     "GCC isn't known to support f16b on this target".to_owned(),
                                 ))?,

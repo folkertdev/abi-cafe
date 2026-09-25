@@ -30,6 +30,7 @@ pub struct CcToolchain {
     compiler: Option<Utf8PathBuf>,
     linker: Option<Utf8PathBuf>,
     debug: bool,
+    has_sse2: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -386,7 +387,7 @@ impl CcToolchain {
 }
 
 impl CcToolchain {
-    pub fn new(system_info: &Config, platform: &'static platforms::Platform, mode: CCMode) -> Self {
+    pub fn new(system_info: &Config, platform_info: &PlatformInfo, mode: CCMode) -> Self {
         let cc_flavor = match mode {
             CCMode::Gcc => CCFlavor::Gcc,
             CCMode::Clang => CCFlavor::Clang,
@@ -413,28 +414,30 @@ impl CcToolchain {
 
         Self {
             cc_flavor,
-            platform,
+            platform: platform_info.target,
             mode,
             compiler: None,
             linker: system_info.linker.clone(),
             debug: system_info.debug,
+            has_sse2: platform_info.has_target_feature("sse2"),
         }
     }
 
     /// A user-supplied compiler (`--add-cc-toolchain flavor:name:path`)
     pub fn new_custom(
         system_info: &Config,
-        platform: &'static platforms::Platform,
+        platform_info: &PlatformInfo,
         cc_flavor: CCFlavor,
         compiler: &Utf8Path,
     ) -> Self {
         Self {
             mode: CCMode::from(cc_flavor),
             cc_flavor,
-            platform,
+            platform: platform_info.target,
             compiler: Some(compiler.to_owned()),
             linker: system_info.linker.clone(),
             debug: system_info.debug,
+            has_sse2: platform_info.has_target_feature("sse2"),
         }
     }
 
@@ -484,9 +487,9 @@ impl CcToolchain {
         }
     }
 
-    fn extra_flags(&self) -> &[&str] {
+    fn extra_flags(&self) -> Vec<&'static str> {
         let is_le = self.platform.target_endian == Endian::Little;
-        match self.cc_flavor {
+        let flags: &[_] = match self.cc_flavor {
             CCFlavor::Gcc if self.platform.target_arch == Arch::Arm => &["-mfp16-format=ieee"],
             // 32-bit x86 has no __int128 unless it is explicitly enabled.
             CCFlavor::Clang if self.platform.target_arch == Arch::X86 => &["-fforce-enable-int128"],
@@ -500,7 +503,18 @@ impl CcToolchain {
                 &["-Xclang", "-fnative-half-arguments-and-returns"]
             }
             _ => &[],
+        };
+
+        let mut flags = flags.to_vec();
+
+        // Forward sse2 (on by default on i686 for rust, but not when using GCC).
+        if self.platform.target_arch == Arch::X86
+            && self.has_sse2
+            && self.cc_flavor != CCFlavor::Msvc
+        {
+            flags.push("-msse2");
         }
+        flags
     }
 
     fn extra_link_flags(&self) -> &[&str] {

@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::harness::report::{BuildOutput, LinkOutput};
@@ -181,6 +182,14 @@ pub struct PlatformInfo {
     pub cfgs: Vec<cargo_platform::Cfg>,
 }
 
+impl PlatformInfo {
+    fn has_target_feature(&self, feature: &str) -> bool {
+        let cfg = cargo_platform::Cfg::from_str(&format!("target_feature=\"{feature}\""))
+            .expect("failed to parse cfg");
+        self.cfgs.contains(&cfg)
+    }
+}
+
 /// Create all the toolchains
 pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
     let mut toolchains = ToolchainMap::default();
@@ -210,14 +219,14 @@ pub(crate) fn create_toolchains(cfg: &crate::Config) -> Toolchains {
         add_toolchain(
             &mut toolchains,
             name,
-            CcToolchain::new(cfg, platform_info.target, name),
+            CcToolchain::new(cfg, &platform_info, name),
         );
     }
     for (flavor, name, path) in &cfg.cc_toolchains {
         add_toolchain(
             &mut toolchains,
             name,
-            CcToolchain::new_custom(cfg, platform_info.target, *flavor, path),
+            CcToolchain::new_custom(cfg, &platform_info, *flavor, path),
         );
     }
 
