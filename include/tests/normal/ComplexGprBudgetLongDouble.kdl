@@ -1,0 +1,9 @@
+// On 32-bit powerpc a hard-float long double is passed in FPRs and uses no GPRs.
+
+fn "ld_cd" {
+    inputs { _ "c_longdouble"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+}
+
+fn "ld_u32_cd" {
+    inputs { _ "u32"; _ "c_longdouble"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+}

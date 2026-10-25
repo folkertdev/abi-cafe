@@ -1,0 +1,43 @@
+// Arguments that take a GPR before a complex number is classified.
+// On 32-bit powerpc a complex number is never split between GPRs and the stack.
+
+struct "Big" {
+    _ "[u32; 8]"
+}
+
+struct "Empty" {
+}
+
+// The sret pointer takes r3.
+fn "sret_cd_cd" {
+    inputs { _ "Complex_c_double"; _ "Complex_c_double"; }
+    outputs { _ "Big"; }
+}
+
+fn "sret_4i_cd" {
+    inputs { _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+    outputs { _ "Big"; }
+}
+
+fn "sret_6i_cd" {
+    inputs { _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+    outputs { _ "Big"; }
+}
+
+// An empty struct is passed by reference.
+fn "empty_6i_cd" {
+    inputs { _ "Empty"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+}
+
+fn "empty_4i_cll" {
+    inputs { _ "Empty"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Complex_c_longlong"; _ "u32"; }
+}
+
+fn "late_empty_cd" {
+    inputs { _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "u32"; _ "Empty"; _ "Complex_c_double"; _ "u32"; }
+}
+
+// A 16-byte complex does not start in an even-numbered GPR.
+fn "odd_cd_cd" {
+    inputs { _ "u32"; _ "Complex_c_double"; _ "u32"; _ "u32"; _ "Complex_c_double"; _ "u32"; }
+}
