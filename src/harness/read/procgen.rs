@@ -67,6 +67,21 @@ fn procgen_test_for_ty_impl(
         add_variadics(out, ty)?;
     }
 
+    // The last fixed argument can shift where the c-variadic arguments start.
+    if can_type_be_last_fixed(ty) {
+        for len in 0..=1 {
+            let mut fixed_inputs = vec!["c_int"; len];
+            fixed_inputs.push(ty);
+            add_func_with_varargs(
+                out,
+                &format!("variadic_after_{len}_fixed"),
+                &fixed_inputs,
+                &["c_int", "c_double", "c_int"],
+                &[],
+            )?;
+        }
+    }
+
     Ok(())
 }
 
@@ -144,6 +159,14 @@ fn can_type_be_vararg(ty_name: &str) -> bool {
     match PRIMITIVES.iter().find(|(name, _)| *name == ty_name) {
         Some((_, prim)) => is_va_arg_safe(*prim),
         None => false,
+    }
+}
+
+/// Can this type be the argument given to `va_start`?
+fn can_type_be_last_fixed(ty_name: &str) -> bool {
+    match PRIMITIVES.iter().find(|(name, _)| *name == ty_name) {
+        Some((_, prim)) => is_va_arg_safe(*prim),
+        None => true,
     }
 }
 
