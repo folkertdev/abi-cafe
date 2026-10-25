@@ -1,0 +1,4 @@
+union "TwoU32Union" {
+    _ "u32"
+    _ "u32"
+}

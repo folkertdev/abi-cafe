@@ -1,0 +1,4 @@
+union "PtrU32Union" {
+    _ "ptr"
+    _ "u32"
+}
